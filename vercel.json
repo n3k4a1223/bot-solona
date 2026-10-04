@@ -1,8 +1,7 @@
 {
-  "version": 2,
+  "framework": null,
   "cleanUrls": true,
-  "routes": [
-    { "src": "/dashboard", "dest": "/index.html" },
-    { "src": "/(.*)", "dest": "/$1" }
+  "rewrites": [
+    { "source": "/dashboard", "destination": "/index.html" }
   ]
 }

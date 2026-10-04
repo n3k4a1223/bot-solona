@@ -1,0 +1,14 @@
+# Ignore Python backend files from Vercel Serverless Function detection
+*.py
+core/
+execution/
+analytics/
+filters/
+risk/
+config/
+tests/
+requirements.txt
+.env
+.env.example
+.pytest_cache/
+__pycache__/
