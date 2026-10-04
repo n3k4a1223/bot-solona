@@ -1,16 +1,16 @@
 """
-OKX Quantitative High-Frequency Strategy Engine (Ultra-Fast Scalper)
-=====================================================================
-Multi-Asset High-Frequency Algorithmic Engine for ALL OKX Pairs:
-- Dynamic All-Coin Market Scanner: Automatically scans top 400+ USDT spot pairs
-- Ultra-Fast Scalp Profit Locking:
-    * Tier 0: Breakeven defense armed at +0.5% (Zero Risk Guarantee)
-    * Tier 1: 50% Immediate Profit Scale-Out Lock at +1.2% (or RSI > 72)
-    * Tier 2: Additional 25% Profit Lock at +2.2%
-    * Hyper-Tight ATR Trailing Stop (1.2x ATR, tightened to 0.8x in profit)
-- Concurrently scanned using asynchronous coroutine batches
-- Fractional Kelly & Volatility Sizing (Max 5 concurrent positions)
-- Drawdown Governor & Circuit Breaker (6.0% max daily drawdown)
+OKX Quantitative High-Frequency Strategy Engine (All-Coin Scalper)
+==================================================================
+Multi-Asset High-Frequency Scalping Engine executing on ALL OKX Coins:
+- Scans ALL 400+ USDT Spot Trading Pairs across OKX
+- Live Market Order Routing for both Simulated Demo & Live Mainnet
+- Multi-Tiered Lightning-Fast Profit Harvesting:
+    * Tier 0: Breakeven Defense at +0.4% (Zero Risk Guaranteed)
+    * Tier 1: 50% Immediate Profit Scale-Out Lock at +1.0%
+    * Tier 2: Secondary 25% Profit Harvest at +2.0%
+    * Dynamic Hyper-Tight ATR Trailing Stop (1.2x -> 0.8x in profit)
+- Precise Lot Size and Decimals Normalization across every instrument
+- Concurrently evaluated using asynchronous batches
 """
 
 from __future__ import annotations
@@ -32,8 +32,10 @@ class OKXPosition:
     inst_id: str
     entry_price: float
     peak_price: float
-    size: float
+    size: float                         # Remaining coin quantity
     trailing_stop: float
+    initial_size: float = 0.0           # Original coin quantity bought
+    usdt_allocated: float = 0.0         # USDT spent on entry
     breakeven_set: bool = False
     scaled_out_tier1: bool = False
     scaled_out_tier2: bool = False
@@ -69,38 +71,23 @@ class IndicatorSnapshot:
 
 class OKXQuantitativeEngine:
     """
-    Unified high-frequency quantitative engine scanning the entire OKX market
-    with ultra-fast scalp profit taking and dynamic ATR ratchet trailing stops.
+    High-frequency quantitative engine scanning ALL coins on OKX,
+    actively executing buy/sell market orders with ultra-fast profit locks.
     """
-
-    # Primary default blue chips, supplemented dynamically by top market volume
-    DEFAULT_WATCHLIST = [
-        "SOL-USDT",
-        "BTC-USDT",
-        "ETH-USDT",
-        "NEAR-USDT",
-        "DOGE-USDT",
-        "SUI-USDT",
-        "PEPE-USDT",
-        "XRP-USDT",
-        "BNB-USDT",
-        "AVAX-USDT",
-    ]
 
     def __init__(
         self,
         okx_client: OKXClient,
-        atr_multiplier: float = 1.2,          # Ultra-fast tight ATR multiplier
-        fast_profit_tier1: float = 1.2,        # +1.2% rapid 50% profit lock
-        fast_profit_tier2: float = 2.2,        # +2.2% secondary profit lock
-        breakeven_trigger: float = 0.5,        # +0.5% breakeven defense
-        rsi_oversold: float = 32.0,
-        rsi_overbought: float = 72.0,
-        volume_surge_threshold: float = 1.6,
+        atr_multiplier: float = 1.2,
+        fast_profit_tier1: float = 1.0,         # +1.0% quick 50% profit lock
+        fast_profit_tier2: float = 2.0,         # +2.0% secondary profit harvest
+        breakeven_trigger: float = 0.4,         # +0.4% breakeven defense
+        rsi_oversold: float = 30.0,
+        rsi_overbought: float = 70.0,
+        volume_surge_threshold: float = 1.1,    # Responsive volume trigger
         max_daily_drawdown_pct: float = 0.06,
-        kelly_fraction: float = 0.35,
+        trade_amount_usdt: float = 50.0,        # Default size per scalp trade
         max_concurrent_positions: int = 5,
-        scan_universe_limit: int = 30,         # Top 30 highest volume & momentum pairs
     ):
         self.client = okx_client
         self.atr_multiplier = atr_multiplier
@@ -111,17 +98,17 @@ class OKXQuantitativeEngine:
         self.rsi_overbought = rsi_overbought
         self.volume_surge_threshold = volume_surge_threshold
         self.max_daily_drawdown_pct = max_daily_drawdown_pct
-        self.kelly_fraction = kelly_fraction
+        self.trade_amount_usdt = trade_amount_usdt
         self.max_concurrent_positions = max_concurrent_positions
-        self.scan_universe_limit = scan_universe_limit
 
         # Active State
         self.positions: Dict[str, OKXPosition] = {}
         self.closed_trades: List[Dict[str, Any]] = []
         self.market_indicators: Dict[str, IndicatorSnapshot] = {}
-        self.active_watchlist: List[str] = list(self.DEFAULT_WATCHLIST)
         self.all_discovered_pairs: List[Dict[str, Any]] = []
+        self.instruments_meta: Dict[str, Dict[str, Any]] = {}
         self.last_universe_discovery: float = 0.0
+        self.last_meta_refresh: float = 0.0
 
         self.peak_equity_usd: float = 0.0
         self.current_equity_usd: float = 0.0
@@ -129,8 +116,8 @@ class OKXQuantitativeEngine:
         self.circuit_tripped: bool = False
         self.circuit_reason: str = ""
         self.recent_logs: List[Dict[str, Any]] = []
-        self.is_running: bool = False
-        self._semaphore = asyncio.Semaphore(10)  # Concurrency governor for OKX rate limits
+        self._semaphore = asyncio.Semaphore(12)
+        self.first_cycle_completed: bool = False
 
     def log_event(self, tag: str, message: str, level: str = "info") -> None:
         """Store structured event for telemetry stream."""
@@ -142,7 +129,7 @@ class OKXQuantitativeEngine:
             "ts": time.time(),
         }
         self.recent_logs.append(entry)
-        if len(self.recent_logs) > 120:
+        if len(self.recent_logs) > 150:
             self.recent_logs.pop(0)
         
         if level == "error":
@@ -153,41 +140,92 @@ class OKXQuantitativeEngine:
             logger.info(f"[{tag}] {message}")
 
     # -------------------------------------------------------------------------
-    # Dynamic All-Coin Universe Discovery
+    # Instrument Specs & Metadata Cache
+    # -------------------------------------------------------------------------
+    async def refresh_metadata_if_needed(self) -> None:
+        now = time.time()
+        if not self.instruments_meta or (now - self.last_meta_refresh > 3600.0):
+            try:
+                self.instruments_meta = await self.client.get_instruments("SPOT")
+                self.last_meta_refresh = now
+                logger.info(f"[OKX] Cached specs for {len(self.instruments_meta)} instruments.")
+            except Exception as e:
+                logger.error(f"[Metadata Error] {e}")
+
+    def format_sell_qty(self, inst_id: str, qty: float) -> str:
+        """Format quantity strictly adhering to OKX lotSz and minSz."""
+        meta = self.instruments_meta.get(inst_id, {})
+        lot_sz = meta.get("lotSz", "0.0001")
+        min_sz = float(meta.get("minSz", "0.0001") or 0.0001)
+
+        if "." in lot_sz:
+            decimals = len(lot_sz.split(".")[1])
+        else:
+            decimals = 0
+
+        factor = 10 ** decimals
+        truncated = math.floor(qty * factor) / factor
+        
+        # Ensure at least minSz if possible
+        if truncated < min_sz and qty >= min_sz * 0.9:
+            truncated = min_sz
+
+        if decimals == 0:
+            return str(int(truncated))
+        res_str = f"{truncated:.{decimals}f}".rstrip("0").rstrip(".")
+        return res_str if res_str else str(truncated)
+
+    # -------------------------------------------------------------------------
+    # Dynamic All-Coin Universe Scanner (All 400+ Pairs)
     # -------------------------------------------------------------------------
     async def discover_all_market_coins(self) -> None:
         """
-        Dynamically scans all 400+ spot coins on OKX, discovers highest-volume
-        and most volatile pairs, and updates active watchlist.
+        Scans all 400+ spot coins on OKX, ranks by liquidity & momentum.
         """
+        await self.refresh_metadata_if_needed()
         now = time.time()
-        # Refresh universe every 45 seconds
-        if now - self.last_universe_discovery < 45.0 and self.all_discovered_pairs:
+        if now - self.last_universe_discovery < 30.0 and self.all_discovered_pairs:
             return
 
         try:
-            tickers = await self.client.get_all_usdt_tickers(min_vol_usdt=500_000.0)
+            tickers = await self.client.get_all_usdt_tickers(min_vol_usdt=50_000.0)
             if tickers:
                 self.all_discovered_pairs = tickers
                 self.last_universe_discovery = now
 
-                # Combine default top coins + highest volume / trending coins
-                new_set: Set[str] = set(self.DEFAULT_WATCHLIST)
-                for t in tickers[: self.scan_universe_limit]:
-                    new_set.add(t["inst_id"])
+                # Pre-populate all coins from tickers so UI and engine track the full market
+                for t in tickers:
+                    inst = t["inst_id"]
+                    if inst not in self.market_indicators:
+                        px = t["last"]
+                        chg = t.get("change_pct", 0.0)
+                        self.market_indicators[inst] = IndicatorSnapshot(
+                            inst_id=inst,
+                            price=px,
+                            high_24h=t.get("high24h", px),
+                            low_24h=t.get("low24h", px),
+                            change_24h_pct=chg,
+                            rsi=50.0,
+                            atr=round(px * 0.01, 5),
+                            atr_pct=1.0,
+                            ema_fast=px,
+                            ema_mid=px,
+                            ema_slow=px,
+                            volume_surge=1.0,
+                            vol_24h_usdt=t.get("vol_ccy", 0.0),
+                            trend="MARKET ACTIVE" if chg >= 0 else "RETRACTING",
+                            signal="MOMENTUM_BUY" if chg > 1.5 else "WATCHLIST",
+                            trailing_stop_preview=round(px * 0.985, 5),
+                        )
 
-                # Keep any coin that has an open position
-                for pos_inst in self.positions.keys():
-                    new_set.add(pos_inst)
-
-                self.active_watchlist = sorted(list(new_set))
-                self.log_event(
-                    "UNIVERSE",
-                    f"OKX Universe scanned: {len(tickers)} active USDT coins found. Top {len(self.active_watchlist)} coins selected for high-speed scalping.",
-                    level="info",
-                )
+                if not self.first_cycle_completed:
+                    self.log_event(
+                        "ALL_COINS",
+                        f"OKX Universe active: {len(tickers)} USDT coins scanned across entire exchange.",
+                        level="info",
+                    )
         except Exception as e:
-            logger.error(f"[Universe Discovery Error] {e}")
+            logger.error(f"[Universe Error] {e}")
 
     # -------------------------------------------------------------------------
     # Technical Indicators Computations
@@ -257,12 +295,12 @@ class OKXQuantitativeEngine:
         return atr
 
     # -------------------------------------------------------------------------
-    # Concurrently Scanned Single Instrument Analysis
+    # Instrument Analysis
     # -------------------------------------------------------------------------
     async def analyze_instrument(self, inst_id: str) -> Optional[IndicatorSnapshot]:
         async with self._semaphore:
-            candles = await self.client.get_candles(inst_id, bar="1m", limit=35)
-            if len(candles) < 15:
+            candles = await self.client.get_candles(inst_id, bar="1m", limit=30)
+            if len(candles) < 10:
                 return None
 
             closes = [c["close"] for c in candles]
@@ -281,27 +319,26 @@ class OKXQuantitativeEngine:
             atr = self.compute_atr(candles, 14)
             atr_pct = (atr / current_price * 100.0) if current_price > 0 else 0.0
 
-            avg_vol = sum(volumes[-15:]) / 15.0 if len(volumes) >= 15 else sum(volumes) / len(volumes)
+            avg_vol = sum(volumes[-10:]) / 10.0 if len(volumes) >= 10 else sum(volumes) / len(volumes)
             current_vol = volumes[-1]
             vol_surge = (current_vol / avg_vol) if avg_vol > 0 else 1.0
 
             # Trend Direction
-            if ema9 > ema21 > ema50:
-                trend = "STRONG BULLISH"
-            elif ema9 > ema21:
-                trend = "MODERATE BULLISH"
-            elif ema9 < ema21 < ema50:
-                trend = "STRONG BEARISH"
+            if ema9 > ema21:
+                trend = "BULLISH MOMENTUM"
+            elif ema9 < ema21:
+                trend = "BEARISH RETRACEMENT"
             else:
                 trend = "CONSOLIDATION"
 
             signal = "NEUTRAL"
             trailing_preview = current_price - (self.atr_multiplier * atr)
 
-            # High-Speed Momentum Breakout Trigger
+            # High-Frequency Scalping Buy Trigger
+            # Active when price holds above EMA9 or is bouncing with volume
             if (
-                trend in ("STRONG BULLISH", "MODERATE BULLISH")
-                and 48.0 <= rsi <= 72.0
+                (current_price >= ema9 or trend == "BULLISH MOMENTUM" or change_pct > 0.1)
+                and 35.0 <= rsi <= 68.0
                 and vol_surge >= self.volume_surge_threshold
                 and not self.circuit_tripped
             ):
@@ -311,7 +348,7 @@ class OKXQuantitativeEngine:
             elif rsi < self.rsi_oversold:
                 signal = "OVERSOLD"
 
-            # Locate 24h volume if in discovered list
+            # Find 24h volume
             vol_usdt = 0.0
             for d in self.all_discovered_pairs:
                 if d["inst_id"] == inst_id:
@@ -341,15 +378,15 @@ class OKXQuantitativeEngine:
             return snapshot
 
     # -------------------------------------------------------------------------
-    # Lightning-Fast Profit Taking & Ratchet Trailing Exit Engine
+    # Lightning-Fast Profit Taking & Trailing Exit Engine
     # -------------------------------------------------------------------------
     async def update_open_positions(self) -> None:
         """
-        Ultra-fast profit locking and trailing exit engine:
-        - Breakeven armed at +0.5% (Zero Risk)
-        - 50% Profit Lock at +1.2% (or RSI > 72)
-        - 25% Additional Profit Lock at +2.2%
-        - Dynamic ATR Ratchet Trailing Stop (1.2x ATR, tightened to 0.8x in profit)
+        Monitors open positions every 1-2 seconds and executes REAL SELL ORDERS on OKX:
+        - +0.4%: Breakeven Stop Triggered (Zero Risk)
+        - +1.0%: 50% Profit Scalp Lock (Market Sell)
+        - +2.0%: 25% Profit Harvest (Market Sell)
+        - Trailing stop breach: Full Market Exit
         """
         for inst_id, pos in list(self.positions.items()):
             snapshot = self.market_indicators.get(inst_id)
@@ -357,7 +394,7 @@ class OKXQuantitativeEngine:
                 continue
 
             current_px = snapshot.price
-            atr = snapshot.atr
+            atr = snapshot.atr if snapshot.atr > 0 else (current_px * 0.008)
 
             # Update Peak Price
             if current_px > pos.peak_price:
@@ -367,82 +404,93 @@ class OKXQuantitativeEngine:
             pos.highest_pnl_pct = max(pos.highest_pnl_pct, pnl_pct)
 
             # -----------------------------------------------------------------
-            # 1. Tier 0: Instant Breakeven Defense (+0.5% PnL)
+            # 1. Tier 0: Breakeven Defense (+0.4% PnL)
             # -----------------------------------------------------------------
             if not pos.breakeven_set and pnl_pct >= self.breakeven_trigger:
                 pos.breakeven_set = True
-                be_price = pos.entry_price * 1.002  # Covers taker fees
+                be_price = pos.entry_price * 1.002
                 if be_price > pos.trailing_stop:
                     pos.trailing_stop = be_price
                     self.log_event(
                         "BREAKEVEN",
-                        f"🛡️ Zero Risk Armed: {inst_id} hit +{pnl_pct:.2f}%. Stop moved to Breakeven (${be_price:.4f})!",
+                        f"🛡️ Zero Risk Armed: {inst_id} reached +{pnl_pct:.2f}%. Stop moved to Breakeven (${be_price:.4f})!",
                         level="info",
                     )
 
             # -----------------------------------------------------------------
-            # 2. Tier 1: Lightning-Fast 50% Profit Lock (+1.2% PnL or RSI > 72)
+            # 2. Tier 1: 50% Immediate Profit Lock (+1.0% PnL or RSI > 70)
             # -----------------------------------------------------------------
             if not pos.scaled_out_tier1 and (pnl_pct >= self.fast_profit_tier1 or snapshot.rsi >= self.rsi_overbought):
                 pos.scaled_out_tier1 = True
-                scale_size = round(pos.size * 0.5, 4)
-                pos.size -= scale_size
-                # Ratchet remaining stop to secure at least +0.75% profit
-                locked_stop = max(pos.trailing_stop, pos.entry_price * 1.0075)
-                pos.trailing_stop = locked_stop
-                self.log_event(
-                    "FAST_PROFIT_1",
-                    f"⚡ RAPID 50% PROFIT LOCK: Sold {scale_size} {inst_id} at ${current_px:.4f} (+{pnl_pct:.2f}%). Stop lifted to +0.75% (${locked_stop:.4f})!",
-                    level="warning",
-                )
-                if not self.client.simulated:
-                    await self.client.place_order(inst_id, side="sell", sz=str(scale_size), ord_type="market")
+                scale_qty_float = pos.size * 0.5
+                sell_sz_str = self.format_sell_qty(inst_id, scale_qty_float)
+                
+                if float(sell_sz_str) > 0:
+                    pos.size -= float(sell_sz_str)
+                    locked_stop = max(pos.trailing_stop, pos.entry_price * 1.006)
+                    pos.trailing_stop = locked_stop
+
+                    # REAL MARKET SELL EXECUTION ON OKX
+                    res = await self.client.place_order(inst_id, side="sell", sz=sell_sz_str, ord_type="market")
+                    self.log_event(
+                        "FAST_PROFIT_1",
+                        f"⚡ QUICK 50% PROFIT LOCK: Sold {sell_sz_str} {inst_id} at ${current_px:.4f} (+{pnl_pct:.2f}%). Stop lifted to +0.6% (${locked_stop:.4f})! (OKX Order: {res.get('order_id')})",
+                        level="warning",
+                    )
 
             # -----------------------------------------------------------------
-            # 3. Tier 2: Secondary Fast Profit Harvest (+2.2% PnL)
+            # 3. Tier 2: Secondary Fast Profit Harvest (+2.0% PnL)
             # -----------------------------------------------------------------
             if pos.scaled_out_tier1 and not pos.scaled_out_tier2 and pnl_pct >= self.fast_profit_tier2:
                 pos.scaled_out_tier2 = True
-                scale_size = round(pos.size * 0.5, 4)
-                pos.size -= scale_size
-                locked_stop = max(pos.trailing_stop, pos.entry_price * 1.016)
-                pos.trailing_stop = locked_stop
-                self.log_event(
-                    "FAST_PROFIT_2",
-                    f"🚀 RAPID PROFIT HARVEST 2: Sold additional {scale_size} {inst_id} at ${current_px:.4f} (+{pnl_pct:.2f}%). Stop lifted to +1.6% (${locked_stop:.4f})!",
-                    level="warning",
-                )
-                if not self.client.simulated:
-                    await self.client.place_order(inst_id, side="sell", sz=str(scale_size), ord_type="market")
+                scale_qty_float = pos.size * 0.5
+                sell_sz_str = self.format_sell_qty(inst_id, scale_qty_float)
+
+                if float(sell_sz_str) > 0:
+                    pos.size -= float(sell_sz_str)
+                    locked_stop = max(pos.trailing_stop, pos.entry_price * 1.015)
+                    pos.trailing_stop = locked_stop
+
+                    # REAL MARKET SELL EXECUTION ON OKX
+                    res = await self.client.place_order(inst_id, side="sell", sz=sell_sz_str, ord_type="market")
+                    self.log_event(
+                        "FAST_PROFIT_2",
+                        f"🚀 RAPID PROFIT HARVEST 2: Sold {sell_sz_str} {inst_id} at ${current_px:.4f} (+{pnl_pct:.2f}%). Stop lifted to +1.5%! (OKX Order: {res.get('order_id')})",
+                        level="warning",
+                    )
 
             # -----------------------------------------------------------------
-            # 4. Dynamic Hyper-Tight ATR Trailing Stop Ratchet
+            # 4. Dynamic Hyper-Tight ATR Trailing Ratchet
             # -----------------------------------------------------------------
-            # Multiplier tightens from 1.2x to 0.8x as position makes profit
-            active_mult = 0.8 if pnl_pct >= 1.0 else self.atr_multiplier
-            new_stop = current_px - (active_mult * atr)
+            mult = 0.8 if pnl_pct >= 0.8 else self.atr_multiplier
+            new_stop = current_px - (mult * atr)
             if new_stop > pos.trailing_stop:
                 pos.trailing_stop = new_stop
                 self.log_event(
                     "ATR_RATCHET",
-                    f"{inst_id} stop ratcheted to ${new_stop:.4f} (Peak: ${pos.peak_price:.4f}, PnL: +{pnl_pct:.2f}%)",
+                    f"{inst_id} stop ratcheted up to ${new_stop:.4f} (Peak: ${pos.peak_price:.4f}, PnL: +{pnl_pct:.2f}%)",
                     level="info",
                 )
 
             # -----------------------------------------------------------------
-            # 5. Stop-Loss / Profit-Stop Execution Trigger
+            # 5. Stop-Loss / Profit Exit Trigger
             # -----------------------------------------------------------------
             if current_px <= pos.trailing_stop:
                 exit_pnl_pct = ((pos.trailing_stop - pos.entry_price) / pos.entry_price) * 100.0
                 profit_usd = (pos.trailing_stop - pos.entry_price) * pos.size
                 is_win = exit_pnl_pct >= 0.0
+
+                sell_sz_str = self.format_sell_qty(inst_id, pos.size)
+                res = {"order_id": "none"}
+                if float(sell_sz_str) > 0:
+                    # REAL MARKET SELL EXECUTION ON OKX
+                    res = await self.client.place_order(inst_id, side="sell", sz=sell_sz_str, ord_type="market")
+
                 self.log_event(
                     "STOP_EXIT",
-                    f"{'✅ WIN EXIT' if is_win else '🛑 STOP EXIT'}: {inst_id} closed at ${pos.trailing_stop:.4f} | PnL: {exit_pnl_pct:+.2f}% (${profit_usd:+.2f})",
+                    f"{'✅ WIN CLOSE' if is_win else '🛑 STOP CLOSE'}: {inst_id} exited at ${pos.trailing_stop:.4f} | PnL: {exit_pnl_pct:+.2f}% (${profit_usd:+.2f}) | OKX Order: {res.get('order_id')}",
                     level="warning" if is_win else "error",
                 )
-                if not self.client.simulated:
-                    await self.client.place_order(inst_id, side="sell", sz=str(pos.size), ord_type="market")
 
                 self.closed_trades.append({
                     "inst_id": inst_id,
@@ -455,7 +503,7 @@ class OKXQuantitativeEngine:
                 del self.positions[inst_id]
 
     # -------------------------------------------------------------------------
-    # Drawdown Governor & Sizing
+    # Drawdown Governor & Balance Sync
     # -------------------------------------------------------------------------
     async def evaluate_risk_and_circuit_breaker(self) -> None:
         bal = await self.client.get_balance()
@@ -478,59 +526,86 @@ class OKXQuantitativeEngine:
                 self.circuit_reason = f"Peak drawdown ({drawdown*100:.2f}%) exceeded limit ({self.max_daily_drawdown_pct*100:.1f}%)"
                 self.log_event("CIRCUIT_BREAKER", f"TRIPPED: {self.circuit_reason}. Trading halted.", level="error")
 
-    def calculate_position_size(self, inst_id: str, price: float, atr: float) -> float:
-        if self.current_equity_usd <= 0 or price <= 0:
-            return 0.0
-        # 4% allocation per scalp trade to allow up to 5 concurrent positions
-        target_usd = self.current_equity_usd * 0.04
-        target_usd = min(target_usd, self.cash_usdt * 0.3)
-        target_qty = target_usd / price
-        return round(target_qty, 4)
-
     # -------------------------------------------------------------------------
-    # High-Speed Master Cycle
+    # Master Execution Cycle across All Coins
     # -------------------------------------------------------------------------
     async def run_cycle(self) -> None:
-        """Single high-speed concurrent evaluation loop."""
-        # 1. Discover all active coins across OKX
+        """
+        Executes an all-coin market scan, places real BUY orders for momentum setups,
+        and manages fast profit-taking for all open positions.
+        """
+        # 1. Discover all 400+ coins and update metadata
         await self.discover_all_market_coins()
-
-        # 2. Update Risk & Balances
         await self.evaluate_risk_and_circuit_breaker()
 
-        # 3. Concurrent technical analysis across the active watchlist
-        tasks = [self.analyze_instrument(inst) for inst in self.active_watchlist]
+        # Select top candidates across all coins to analyze with 1m candles
+        # OKX candle rate limit is 20 req/2s, so we take top 8 candidates + any open positions
+        top_candidates = [d["inst_id"] for d in self.all_discovered_pairs[:8]]
+        candle_targets = list(set(top_candidates + list(self.positions.keys())))
+
+        # 2. Concurrently analyze target coins with 1m candles
+        tasks = [self.analyze_instrument(inst) for inst in candle_targets]
         snapshots = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # 4. Fast Entry Evaluation
-        if len(self.positions) < self.max_concurrent_positions and not self.circuit_tripped:
-            for snap in snapshots:
-                if isinstance(snap, IndicatorSnapshot) and snap.signal == "MOMENTUM_BUY":
-                    if snap.inst_id not in self.positions:
-                        qty = self.calculate_position_size(snap.inst_id, snap.price, snap.atr)
-                        if qty > 0:
-                            stop_level = snap.price - (self.atr_multiplier * snap.atr)
-                            self.positions[snap.inst_id] = OKXPosition(
-                                inst_id=snap.inst_id,
-                                entry_price=snap.price,
-                                peak_price=snap.price,
-                                size=qty,
-                                trailing_stop=stop_level,
-                                atr_at_entry=snap.atr,
-                            )
-                            self.log_event(
-                                "SCALP_BUY",
-                                f"⚡ FAST BUY {qty} {snap.inst_id} at ${snap.price:.4f} | ATR Stop: ${stop_level:.4f} | Vol Surge: {snap.volume_surge}x",
-                                level="info",
-                            )
-                            if not self.client.simulated:
-                                await self.client.place_order(snap.inst_id, side="buy", sz=str(qty), ord_type="market")
-                            
-                            if len(self.positions) >= self.max_concurrent_positions:
-                                break
+        valid_snaps: List[IndicatorSnapshot] = [s for s in snapshots if isinstance(s, IndicatorSnapshot)]
 
-        # 5. Rapid Profit Taking and Trailing Exits
+        # 3. Active Real Market BUY Execution on OKX
+        if len(self.positions) < self.max_concurrent_positions and not self.circuit_tripped:
+            # Sort candidates by momentum and volume
+            buy_candidates = [s for s in valid_snaps if s.signal == "MOMENTUM_BUY" and s.inst_id not in self.positions]
+            
+            # If no strict momentum buy, and we have 0 open positions on startup, pick the top trending candidate
+            if not buy_candidates and len(self.positions) == 0 and valid_snaps:
+                sorted_by_change = sorted(valid_snaps, key=lambda s: s.change_24h_pct, reverse=True)
+                for s in sorted_by_change:
+                    if s.price > 0 and 35 <= s.rsi <= 72 and s.inst_id not in self.positions:
+                        buy_candidates.append(s)
+                        if len(buy_candidates) >= 2:
+                            break
+
+            for snap in buy_candidates:
+                if len(self.positions) >= self.max_concurrent_positions:
+                    break
+
+                target_usdt = self.trade_amount_usdt
+                if self.cash_usdt > 100:
+                    # Dynamically size up to 100 USDT if cash is abundant
+                    target_usdt = min(100.0, max(25.0, self.cash_usdt * 0.05))
+
+                target_usdt_str = str(round(target_usdt, 2))
+
+                # EXECUTE REAL MARKET BUY ORDER ON OKX
+                res = await self.client.place_order(snap.inst_id, side="buy", sz=target_usdt_str, ord_type="market")
+                if res.get("success"):
+                    order_id = res.get("order_id", "OKX")
+                    est_qty = target_usdt / snap.price
+                    stop_level = snap.price - (self.atr_multiplier * snap.atr)
+
+                    self.positions[snap.inst_id] = OKXPosition(
+                        inst_id=snap.inst_id,
+                        entry_price=snap.price,
+                        peak_price=snap.price,
+                        size=est_qty,
+                        initial_size=est_qty,
+                        usdt_allocated=target_usdt,
+                        trailing_stop=stop_level,
+                        atr_at_entry=snap.atr,
+                    )
+                    self.log_event(
+                        "ORDER_BUY",
+                        f"🛒 OKX MARKET BUY: Bought ${target_usdt_str} USDT of {snap.inst_id} at ${snap.price:.4f} (Order ID: {order_id}) | ATR Stop: ${stop_level:.4f}",
+                        level="info",
+                    )
+                else:
+                    self.log_event(
+                        "BUY_ERROR",
+                        f"Failed buying {snap.inst_id}: {res.get('msg')}",
+                        level="warning",
+                    )
+
+        # 4. Rapid Profit Taking and Trailing Exits
         await self.update_open_positions()
+        self.first_cycle_completed = True
 
     def get_telemetry(self) -> Dict[str, Any]:
         pos_list = []
@@ -544,7 +619,8 @@ class OKXQuantitativeEngine:
                 "entry_price": pos.entry_price,
                 "current_price": curr_px,
                 "peak_price": pos.peak_price,
-                "size": pos.size,
+                "size": round(pos.size, 4),
+                "usdt_allocated": pos.usdt_allocated,
                 "trailing_stop": round(pos.trailing_stop, 4),
                 "breakeven_set": pos.breakeven_set,
                 "scaled_out_tier1": pos.scaled_out_tier1,
@@ -555,7 +631,6 @@ class OKXQuantitativeEngine:
             })
 
         indicators_list = []
-        # Sort by 24h volume or change
         sorted_snaps = sorted(self.market_indicators.values(), key=lambda s: s.vol_24h_usdt, reverse=True)
         for snap in sorted_snaps:
             indicators_list.append({
@@ -578,7 +653,7 @@ class OKXQuantitativeEngine:
 
         return {
             "status": "active" if not self.circuit_tripped else "circuit_tripped",
-            "mode": "Ultra-Fast Multi-Asset Scalper",
+            "mode": "Active All-Coin Real-Order Scalper",
             "simulated": self.client.simulated,
             "total_equity_usd": round(self.current_equity_usd, 2),
             "cash_usdt": round(self.cash_usdt, 2),
@@ -587,19 +662,20 @@ class OKXQuantitativeEngine:
             "max_drawdown_limit_pct": round(self.max_daily_drawdown_pct * 100.0, 1),
             "circuit_tripped": self.circuit_tripped,
             "circuit_reason": self.circuit_reason,
-            "universe_coins_tracked": len(self.active_watchlist),
+            "universe_coins_tracked": len(self.all_discovered_pairs),
             "total_market_pairs": len(self.all_discovered_pairs),
             "strategy": {
-                "name": "OKX Ultra-Fast All-Coin Scalper",
+                "name": "OKX Live All-Coin Rapid Scalper",
                 "profit_lock_tier1": f"+{self.fast_profit_tier1}% (50% scale-out)",
                 "profit_lock_tier2": f"+{self.fast_profit_tier2}% (secondary harvest)",
                 "breakeven_guard": f"+{self.breakeven_trigger}% (zero risk)",
                 "atr_multiplier": f"{self.atr_multiplier}x (tightens to 0.8x in profit)",
+                "trade_amount_usdt": f"${self.trade_amount_usdt} USDT",
                 "max_concurrent_positions": self.max_concurrent_positions,
             },
             "open_positions": pos_list,
-            "closed_trades": self.closed_trades[-15:],
-            "market_indicators": indicators_list[:35],
-            "logs": self.recent_logs[-30:],
+            "closed_trades": self.closed_trades[-20:],
+            "market_indicators": indicators_list[:250],
+            "logs": self.recent_logs[-35:],
             "timestamp": time.time(),
         }

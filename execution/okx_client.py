@@ -241,6 +241,38 @@ class OKXClient:
                 })
         return candles
 
+    async def get_instruments(self, inst_type: str = "SPOT") -> Dict[str, Dict[str, Any]]:
+        """Retrieve instrument specifications (lotSz, minSz, tickSz) for all pairs."""
+        res = await self._request("GET", "/api/v5/public/instruments", params={"instType": inst_type})
+        mapping = {}
+        if res.get("code") == "0" and res.get("data"):
+            for item in res["data"]:
+                mapping[item["instId"]] = {
+                    "lotSz": item.get("lotSz", "0.0001"),
+                    "minSz": item.get("minSz", "0.0001"),
+                    "tickSz": item.get("tickSz", "0.01"),
+                }
+        return mapping
+
+    def format_qty(self, inst_id: str, qty: float, instruments_meta: Optional[Dict[str, Any]] = None) -> str:
+        """Format order quantity according to instrument lotSz precision."""
+        import math
+        lot_sz = "0.0001"
+        if instruments_meta and inst_id in instruments_meta:
+            lot_sz = instruments_meta[inst_id].get("lotSz", "0.0001")
+        
+        if "." in lot_sz:
+            decimals = len(lot_sz.split(".")[1])
+        else:
+            decimals = 0
+            
+        factor = 10 ** decimals
+        truncated = math.floor(qty * factor) / factor
+        if decimals == 0:
+            return str(int(truncated))
+        res_str = f"{truncated:.{decimals}f}".rstrip("0").rstrip(".")
+        return res_str if res_str else str(truncated)
+
     # -------------------------------------------------------------------------
     # Trade Execution
     # -------------------------------------------------------------------------
