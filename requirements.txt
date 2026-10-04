@@ -1,0 +1,26 @@
+# ==============================================================================
+# Solana High-Frequency Adaptive Trading Bot Dependencies
+# ==============================================================================
+
+# Core Solana & Cryptography
+solana>=0.34.0
+solders>=0.21.0
+base58>=2.1.1
+PyNaCl>=1.5.0
+
+# Async Networking & Event Loop
+aiohttp>=3.9.0
+websockets>=12.0
+
+# Configuration & Data Validation
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.1
+
+# Quantitative Analytics & Statistics
+numpy>=1.26.0
+scipy>=1.12.0
+
+# Asynchronous Terminal UI & Logging
+rich>=13.7.0
+loguru>=0.7.2

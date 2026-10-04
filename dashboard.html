@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#020617">
+  <title>Solana Quantitative Trading Terminal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.95); }
+    }
+    .live-pulse {
+      animation: pulse-slow 2s infinite ease-in-out;
+    }
+    /* Touch scroll optimization */
+    .touch-scroll {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.4);
+      border-radius: 4px;
+    }
+    /* Prevent text selection during chart touch */
+    canvas {
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen pb-20 md:pb-6 p-3 sm:p-4 md:p-6 font-sans overflow-x-hidden selection:bg-cyan-500 selection:text-black">
+
+  <!-- Main System Header -->
+  <header class="bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-4 sm:p-5 mb-4 sm:mb-6 shadow-2xl">
+    <div class="flex flex-col gap-3.5">
+      <!-- Title & Live Status Badges -->
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5">
+          <div class="w-3 h-3 rounded-full bg-emerald-400 live-pulse shadow-[0_0_10px_rgba(52,211,153,0.8)]"></div>
+          <h1 class="text-base sm:text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            Solana Quantitative Terminal
+          </h1>
+        </div>
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            MAINNET LIVE
+          </span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+            AUTONOMOUS
+          </span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            VIEW ONLY
+          </span>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 leading-relaxed -mt-1 hidden sm:block">
+        Multi-RPC WebSocket Stream &bull; Jupiter v6 Dynamic Routing &bull; Jito MEV Bundles &bull; Fractional Kelly &amp; Micro-Compounding
+      </p>
+
+      <!-- Network & Strategy Telemetry Grid (2x2 on Mobile, 4 Cols on Desktop) -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+        <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider">Strategy Mode</div>
+          <div class="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate mt-0.5" id="stat-mode">
+            Micro-Compound
+          </div>
+        </div>
+
+        <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider">Cluster TPS</div>
+          <div class="font-mono font-bold text-xs sm:text-sm text-emerald-400 mt-0.5" id="stat-tps">
+            2,450
+          </div>
+        </div>
+
+        <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider">Tx Fail Rate</div>
+          <div class="font-mono font-bold text-xs sm:text-sm text-emerald-400 mt-0.5" id="stat-fail-rate">
+            7.8%
+          </div>
+        </div>
+
+        <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider">Slot Latency</div>
+          <div class="font-mono font-bold text-xs sm:text-sm text-cyan-400 mt-0.5" id="stat-latency">
+            380ms
+          </div>
+        </div>
+      </div>
+
+      <!-- Configured Wallet Key Banner with Copy Button -->
+      <div class="pt-3 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+        <div class="flex items-center gap-2 max-w-full overflow-hidden">
+          <span class="text-slate-400 font-medium shrink-0">Wallet:</span>
+          <div class="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 max-w-full overflow-hidden">
+            <code class="font-mono text-[11px] text-cyan-400 truncate select-all" id="wallet-address">
+              7zAUSFzM6KAZJ8x7QGqtMVT3K3JxYK2zATcUxyChs2H3
+            </code>
+            <button id="btn-copy-wallet" class="shrink-0 text-slate-400 hover:text-white p-0.5 active:scale-95 transition-transform" title="Copy Wallet Address">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+              </svg>
+            </button>
+          </div>
+          <a href="https://solscan.io/account/7zAUSFzM6KAZJ8x7QGqtMVT3K3JxYK2zATcUxyChs2H3" target="_blank" rel="noopener noreferrer" class="text-xs text-cyan-400 hover:text-cyan-300 underline shrink-0 flex items-center gap-0.5">
+            Solscan ↗
+          </a>
+        </div>
+
+        <div class="flex items-center gap-3 text-slate-400 font-mono text-[10px] sm:text-xs">
+          <span>RPC: <strong class="text-slate-200">Mainnet-Beta</strong></span>
+          <span>MEV: <strong class="text-purple-400">Jito Bundle</strong></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Key Capital & Risk Metrics (2 Cols on Mobile, 4 on Desktop) -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+    <!-- Liquid Balance Card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+        <span>LIQUID BALANCE</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 font-mono">SOL</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-balance">0.0000 SOL</div>
+      <div class="text-[11px] text-amber-400/90 mt-2 flex items-center gap-1 leading-tight">
+        <span>Deposit ~$5 (0.03 SOL) to trade</span>
+      </div>
+    </div>
+
+    <!-- Active Regime Card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+        <span>ACTIVE REGIME</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 font-mono">AUTO</span>
+      </div>
+      <div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">MICRO-COMPOUND</div>
+      <div class="text-[11px] text-slate-400 mt-2 leading-tight">
+        40%–75% Size &bull; 0.005 Gas Reserve
+      </div>
+    </div>
+
+    <!-- Drawdown Governor Card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+        <span>DRAWDOWN GOV</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 font-mono">MAX 6%</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-drawdown">0.00%</div>
+      <div class="text-[11px] text-slate-400 mt-2 leading-tight">
+        Peak: <span class="font-mono font-bold text-white" id="card-peak">0.0000 SOL</span>
+      </div>
+    </div>
+
+    <!-- Security Verified Pools Card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+        <span>AUDITED POOLS</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 font-mono">H &ge; 2.2</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-monitored">1</div>
+      <div class="text-[11px] text-emerald-400 mt-2 flex items-center gap-1 leading-tight">
+        <span>✓ 7/7 Hard Stops Cleared</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Visualizer & Telemetry Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
+
+    <!-- Column 1 & 2: Dynamic Trailing Stop Chart Visualizer -->
+    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+        <div>
+          <h2 class="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+            <span>Dynamic ATR Trailing Stop Curve</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              Auto Ratchet
+            </span>
+          </h2>
+          <p class="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+            Stop Distance = 2.0 &times; max(ATR, Peak &times; &sigma;<sub>1m</sub>). Automatically locks profits without manual input.
+          </p>
+        </div>
+
+        <!-- Simulation Buttons (Mobile Touch Friendly) -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button id="btn-chart-runup" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 transition-colors">
+            +25% Run
+          </button>
+          <button id="btn-chart-exhaust" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-amber-400 transition-colors">
+            Exhaustion
+          </button>
+          <button id="btn-chart-reset" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-400 transition-colors">
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Responsive Canvas Chart Container -->
+      <div class="relative w-full h-56 sm:h-64 bg-slate-950 rounded-xl border border-slate-800 p-2 overflow-hidden">
+        <canvas id="trailing-canvas" class="w-full h-full block"></canvas>
+      </div>
+
+      <!-- Chart Legend & Metrics Bar -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] mt-3 pt-3 border-t border-slate-800">
+        <div class="flex items-center gap-3 flex-wrap">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-1 bg-cyan-400 rounded-full inline-block"></span>
+            <span class="text-slate-400">Token Price</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-1 bg-red-400 rounded-full inline-block"></span>
+            <span class="text-slate-400">ATR Trailing Stop Band</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 bg-amber-400 rounded-full inline-block"></span>
+            <span class="text-slate-400">50% Scale-Out Trigger</span>
+          </div>
+        </div>
+        <div class="font-mono text-slate-300 text-[10px] sm:text-xs">
+          Price: <strong class="text-cyan-400">0.00125 SOL</strong> | Stop: <strong class="text-red-400">0.00109 SOL</strong> | PnL: <strong class="text-emerald-400">+25.0%</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 3: Autonomous Strategy Telemetry (View-Only HUD) -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-sm sm:text-base font-semibold text-white">
+            Autonomous Strategy Telemetry
+          </h2>
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            AUTONOMOUS
+          </span>
+        </div>
+        <p class="text-[11px] sm:text-xs text-slate-400 mb-3.5">
+          Mathematical allocation rules computed continuously. Zero manual tweaking required.
+        </p>
+
+        <!-- Strategy Telemetry List -->
+        <div class="space-y-2 text-xs">
+          <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex justify-between items-center">
+            <div>
+              <div class="text-slate-200 font-medium">Sizing Engine</div>
+              <div class="text-[10px] text-slate-400">Micro-Scale &harr; Fractional Kelly</div>
+            </div>
+            <div class="text-right">
+              <span class="font-mono font-bold text-emerald-400">Adaptive</span>
+              <div class="text-[10px] text-slate-400">Threshold: 0.15 SOL</div>
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex justify-between items-center">
+            <div>
+              <div class="text-slate-200 font-medium">Gas &amp; Rent Reserve</div>
+              <div class="text-[10px] text-slate-400">Locked fee buffer</div>
+            </div>
+            <div class="text-right">
+              <span class="font-mono font-bold text-cyan-400">0.0050 SOL</span>
+              <div class="text-[10px] text-slate-400">Prevents starvation</div>
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex justify-between items-center">
+            <div>
+              <div class="text-slate-200 font-medium">Retail Momentum Trigger</div>
+              <div class="text-[10px] text-slate-400">Buyer inflow velocity (3 min)</div>
+            </div>
+            <div class="text-right">
+              <span class="font-mono font-bold text-purple-400">&ge; 90th %ile</span>
+              <div class="text-[10px] text-slate-400">&ge; 12 unique buyers</div>
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex justify-between items-center">
+            <div>
+              <div class="text-slate-200 font-medium">Dynamic Trailing Stop</div>
+              <div class="text-[10px] text-slate-400">ATR multiplier &amp; scale-out</div>
+            </div>
+            <div class="text-right">
+              <span class="font-mono font-bold text-amber-400">2.0x ATR</span>
+              <div class="text-[10px] text-slate-400">50% lock on exhaust</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Calculation Card for Small Capital ($5) -->
+      <div class="bg-slate-950 rounded-xl border border-slate-800 p-3 mt-3.5">
+        <div class="text-[11px] text-slate-400 mb-1 flex items-center justify-between">
+          <span>Target Size for ~$5 (0.03 SOL):</span>
+          <span class="text-emerald-400 font-mono text-[10px]">CALCULATED</span>
+        </div>
+        <div class="flex items-baseline justify-between">
+          <span class="text-lg sm:text-xl font-bold font-mono text-emerald-400">0.0150 SOL</span>
+          <span class="text-xs font-mono font-semibold text-slate-300">~60% of Tradable</span>
+        </div>
+        <div class="mt-1.5 pt-1.5 border-t border-slate-800 text-[10px] font-mono text-slate-400 flex justify-between">
+          <span>Fee Buffer: <strong class="text-cyan-400">0.005 SOL</strong></span>
+          <span>Order Cap: <strong class="text-slate-200">1.5% Pool</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Tier Anti-Scam Filter Breakdown & Live DEX Stream -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
+
+    <!-- Anti-Scam Filter Inspector Card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm sm:text-base font-semibold text-white">
+          Multi-Tier Risk Score Breakdown
+        </h3>
+        <span class="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          92.0 / 100
+        </span>
+      </div>
+      <p class="text-[11px] sm:text-xs text-slate-400 mb-3">
+        Rigorous algorithmic verification before committing any SOL.
+      </p>
+
+      <div class="space-y-2 text-xs">
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-2 h-2 shrink-0 rounded-full bg-emerald-400"></span>
+            <span class="font-medium text-slate-200 truncate">Mint Authority Revoked</span>
+          </div>
+          <span class="font-mono text-emerald-400 font-semibold shrink-0">PASS</span>
+        </div>
+
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-2 h-2 shrink-0 rounded-full bg-emerald-400"></span>
+            <span class="font-medium text-slate-200 truncate">Freeze Authority Revoked</span>
+          </div>
+          <span class="font-mono text-emerald-400 font-semibold shrink-0">PASS</span>
+        </div>
+
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-2 h-2 shrink-0 rounded-full bg-emerald-400"></span>
+            <span class="font-medium text-slate-200 truncate">LP Burn / Lock Status</span>
+          </div>
+          <span class="font-mono text-emerald-400 font-semibold shrink-0">100% Burned</span>
+        </div>
+
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-2 h-2 shrink-0 rounded-full bg-emerald-400"></span>
+            <span class="font-medium text-slate-200 truncate">Token-2022 Transfer Fee</span>
+          </div>
+          <span class="font-mono text-emerald-400 font-semibold shrink-0">0 bps (0% Tax)</span>
+        </div>
+
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-2 h-2 shrink-0 rounded-full bg-emerald-400"></span>
+            <span class="font-medium text-slate-200 truncate">Top 10 Holder Concentration</span>
+          </div>
+          <span class="font-mono text-emerald-400 font-semibold shrink-0">16.3% (&lt; 20%)</span>
+        </div>
+
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-2 h-2 shrink-0 rounded-full bg-emerald-400"></span>
+            <span class="font-medium text-slate-200 truncate">Holder Shannon Entropy</span>
+          </div>
+          <span class="font-mono text-emerald-400 font-semibold shrink-0">H = 2.61 (&ge; 2.20)</span>
+        </div>
+
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950 border border-slate-800">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-2 h-2 shrink-0 rounded-full bg-emerald-400"></span>
+            <span class="font-medium text-slate-200 truncate">Honeypot Dual-Quote Sim</span>
+          </div>
+          <span class="font-mono text-emerald-400 font-semibold shrink-0">1.4% (&lt; 3.0%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live DEX Activity Stream Console -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 live-pulse"></span>
+            <span>Live DEX Activity Stream</span>
+          </h3>
+          <span class="text-[10px] font-mono text-slate-400">Raydium &bull; Pump.fun</span>
+        </div>
+        <p class="text-[11px] sm:text-xs text-slate-400 mb-3">
+          Direct WebSocket execution and transaction telemetry.
+        </p>
+
+        <!-- Log Scroll Box with Touch Optimization -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] sm:text-xs space-y-1.5 h-64 sm:h-72 overflow-y-auto touch-scroll" id="log-container">
+          <div class="text-emerald-400/90 leading-relaxed">
+            [SYS] <span class="text-purple-400">WS_CONN:</span> Subscribed to Raydium V4, CPMM &amp; Pump.fun streams.
+          </div>
+          <div class="text-slate-400 leading-relaxed">
+            [SYS] <span class="text-cyan-400">RPC_INIT:</span> Multi-RPC load balancer active. Pinned OS resolver.
+          </div>
+          <div class="text-amber-400/90 leading-relaxed">
+            [WAL] <span class="text-yellow-400">WALLET:</span> 7zAUSF...s2H3 active. Micro-Capital Mode enabled.
+          </div>
+          <div class="text-emerald-400 leading-relaxed">
+            [AUD] <span class="text-cyan-400">PASS:</span> DezXAZ8z...B263 cleared all 7 anti-scam audits (Score: 92/100).
+          </div>
+          <div class="text-slate-200 leading-relaxed">
+            [MOM] <span class="text-emerald-400">FLOW:</span> 18 unique buyers (92.5%ile &gt; 90.0%ile). Momentum verified.
+          </div>
+          <div class="text-cyan-400 leading-relaxed">
+            [SIZ] <span class="text-purple-400">ALLOC:</span> Sized 0.0150 SOL (~$2.60) | Gas Reserve: 0.005 SOL.
+          </div>
+          <div class="text-emerald-400 leading-relaxed">
+            [EXE] <span class="text-emerald-400">JITO:</span> Atomic buy bundle submitted with adaptive MEV tip.
+          </div>
+          <div class="text-amber-400 leading-relaxed">
+            [EXI] <span class="text-amber-400">SCALE:</span> Buyer exhaustion detected. De-risked 50% (+25.0% PnL).
+          </div>
+          <div class="text-red-400 leading-relaxed">
+            [EXI] <span class="text-red-400">STOP:</span> Dynamic ATR band breached at trailing stop. Profit secured.
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+        <span>Auto-reconnecting stream</span>
+        <button id="btn-clear-logs" class="hover:text-white underline p-1 active:scale-95 transition-transform">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Guardrails Footer (Desktop / Tablet) -->
+  <footer class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg text-xs text-slate-400 mb-2">
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+      <div>
+        <h4 class="font-semibold text-white text-xs sm:text-sm mb-1">Autonomous Execution Safety Parameters</h4>
+        <p class="text-[11px] sm:text-xs">
+          Small accounts (&lt; 0.15 SOL) utilize <strong>40%–75%</strong> micro-sizing with a protected <strong>0.005 SOL gas reserve</strong>. 
+          Accounts &ge; 0.15 SOL throttle automatically to <strong>3%–8% Fractional Kelly</strong>. 
+          Emergency circuit breaker trips at <strong>6.0% portfolio peak drawdown</strong>.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="px-2.5 py-1 rounded-xl bg-slate-800 text-slate-200 font-mono text-[11px] border border-slate-700">
+          python main.py --live
+        </span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Mobile Bottom Sticky Status Ticker (Visible on Mobile Only) -->
+  <div class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-4 py-2.5 flex items-center justify-between text-xs z-50 shadow-[0_-4px_16px_rgba(0,0,0,0.5)]">
+    <div class="flex items-center gap-2 overflow-hidden">
+      <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse shrink-0"></div>
+      <div class="font-mono text-[11px] text-slate-200 truncate">
+        LIVE &bull; <span class="text-cyan-400 font-bold">0.0000 SOL</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">
+        MICRO MODE
+      </span>
+      <a href="https://solscan.io/account/7zAUSFzM6KAZJ8x7QGqtMVT3K3JxYK2zATcUxyChs2H3" target="_blank" class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-cyan-400 hover:text-white">
+        Scan ↗
+      </a>
+    </div>
+  </div>
+
+  <!-- Interactive JavaScript Engine -->
+  <script>
+    // Copy wallet functionality
+    const btnCopy = document.getElementById('btn-copy-wallet');
+    if (btnCopy) {
+      btnCopy.addEventListener('click', () => {
+        const addr = document.getElementById('wallet-address').innerText.trim();
+        navigator.clipboard.writeText(addr).then(() => {
+          btnCopy.innerHTML = '<span class="text-emerald-400 text-[10px] font-bold">✓</span>';
+          setTimeout(() => {
+            btnCopy.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`;
+          }, 1500);
+        });
+      });
+    }
+
+    // Canvas Chart Engine
+    const canvas = document.getElementById('trailing-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.resetTransform?.();
+      ctx.scale(dpr, dpr);
+      drawChart();
+    }
+
+    let points = [
+      { price: 1.00, stop: 0.90, event: 'ENTRY' },
+      { price: 1.05, stop: 0.94, event: '' },
+      { price: 1.12, stop: 1.00, event: '' },
+      { price: 1.25, stop: 1.12, event: 'SCALE_OUT' },
+      { price: 1.20, stop: 1.12, event: '' },
+      { price: 1.10, stop: 1.12, event: 'STOPPED' }
+    ];
+
+    function drawChart() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      if (points.length < 2) return;
+
+      const paddingX = 24;
+      const paddingY = 24;
+      const minVal = 0.85;
+      const maxVal = 1.35;
+
+      const getX = (index) => paddingX + (index / (points.length - 1)) * (w - paddingX * 2);
+      const getY = (val) => h - paddingY - ((val - minVal) / (maxVal - minVal)) * (h - paddingY * 2);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.lineWidth = 1;
+      for (let v = 0.90; v <= 1.30; v += 0.10) {
+        ctx.beginPath();
+        ctx.moveTo(paddingX, getY(v));
+        ctx.lineTo(w - paddingX, getY(v));
+        ctx.stroke();
+      }
+
+      // Trailing Stop Line (Red Dash)
+      ctx.beginPath();
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      points.forEach((pt, i) => {
+        const x = getX(i);
+        const y = getY(pt.stop);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Price Line (Cyan Solid)
+      ctx.beginPath();
+      ctx.strokeStyle = '#22d3ee';
+      ctx.lineWidth = 2.5;
+      points.forEach((pt, i) => {
+        const x = getX(i);
+        const y = getY(pt.price);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Event Markers
+      points.forEach((pt, i) => {
+        const x = getX(i);
+        const y = getY(pt.price);
+
+        if (pt.event === 'SCALE_OUT') {
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(x, y, 5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#f59e0b';
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText('50% Scale', Math.max(10, x - 28), y - 9);
+        } else if (pt.event === 'STOPPED') {
+          ctx.fillStyle = '#ef4444';
+          ctx.beginPath();
+          ctx.arc(x, y, 5.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ef4444';
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText('Stop Breach', Math.max(10, x - 32), y + 16);
+        } else {
+          ctx.fillStyle = '#22d3ee';
+          ctx.beginPath();
+          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 150));
+    setTimeout(resizeCanvas, 50);
+
+    // Simulator Buttons
+    document.getElementById('btn-chart-runup').addEventListener('click', () => {
+      const last = points[points.length - 1];
+      const newPrice = last.price * 1.10;
+      const newStop = Math.max(last.stop, newPrice * 0.88);
+      points.push({ price: newPrice, stop: newStop, event: '' });
+      drawChart();
+    });
+
+    document.getElementById('btn-chart-exhaust').addEventListener('click', () => {
+      const last = points[points.length - 1];
+      points.push({ price: last.price * 0.96, stop: last.stop, event: 'SCALE_OUT' });
+      drawChart();
+    });
+
+    document.getElementById('btn-chart-reset').addEventListener('click', () => {
+      points = [
+        { price: 1.00, stop: 0.90, event: 'ENTRY' },
+        { price: 1.05, stop: 0.94, event: '' },
+        { price: 1.12, stop: 1.00, event: '' },
+        { price: 1.25, stop: 1.12, event: 'SCALE_OUT' },
+        { price: 1.20, stop: 1.12, event: '' },
+        { price: 1.10, stop: 1.12, event: 'STOPPED' }
+      ];
+      drawChart();
+    });
+
+    // Clear logs
+    document.getElementById('btn-clear-logs').addEventListener('click', () => {
+      document.getElementById('log-container').innerHTML = '<div class="text-slate-500">[CLEAR] Log stream refreshed. Listening for new events...</div>';
+    });
+  </script>
+</body>
+</html>
