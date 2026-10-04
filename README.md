@@ -242,3 +242,30 @@ python main.py
 ```bash
 python main.py --live
 ```
+
+---
+
+## 5. OKX Quantitative Exchange Terminal (سەربەخۆ لە Solana و GMGN)
+
+سیستەمی بازرگانی پێشکەوتووی تایبەت بە بۆرسەی **OKX** بە شێوەیەکی ١٠٠٪ سەربەخۆ بەبێ پێویستی بە جزدانی سۆلانا یان GMGN:
+
+- **پەیوەندی ڕاستەوخۆ بە API v5 بۆرسەی OKX**: ئیمزاکردنی فەرمی بە HMAC-SHA256 و دەرهێنانی بالانسی هەژمار.
+- **ستراتیژی داینامیکی ATR Ratchet Trailing Stop**: بەرزبوونەوەی بەردەوامی ستۆپ بە پێی گۆڕانی بازاڕ و قفڵکردنی ٥٠٪ لە قازانج کاتی شەکەتی (Exhaustion Lock).
+- **سکێنەری Multi-Asset Momentum Ribbon**: پشکنینی ڕاستەوخۆی بەهێزترین جووتەکانی OKX وەک `SOL-USDT`, `BTC-USDT`, `ETH-USDT`, `NEAR-USDT`, `DOGE-USDT`.
+- **پاراستنی سەرمایە بە Circuit Breaker**: وەستانی ئۆتۆماتیکی لە کاتی تێپەڕاندنی ٦٪ دابەزینی ڕۆژانەی پۆرتفۆلیۆ.
+
+### دەستپێکردنی تێرمینالی OKX:
+```bash
+# پێداچوونەوە و بازرگانی بە دۆخی ئەزموونی (Demo / Simulated):
+python okx_main.py --simulated
+
+# بازرگانی بە دۆخی ڕاستەقینە (Live Capital):
+python okx_main.py --live
+```
+
+### کردنەوەی داشبۆردی وێب:
+```bash
+python server.py
+```
+سەردانی **`http://localhost:8080/okx`** بکە یان لەسەرەوەی لاپەڕەی سەرەکی کلیک لە دوگمەی **OKX xchange** بکە!
+

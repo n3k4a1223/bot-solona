@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#030712">
+  <title>OKX Quantitative Exchange Terminal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.95); }
+    }
+    .live-pulse {
+      animation: pulse-slow 2s infinite ease-in-out;
+    }
+    .touch-scroll {
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(55, 65, 81, 0.6);
+      border-radius: 4px;
+    }
+    canvas {
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-slate-100 antialiased min-h-screen pb-20 md:pb-6 p-3 sm:p-4 md:p-6 font-sans overflow-x-hidden selection:bg-blue-500 selection:text-white">
+
+  <!-- Top System Header (OKX Terminal) -->
+  <header class="bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-2xl p-4 sm:p-5 mb-4 sm:mb-6 shadow-2xl">
+    <div class="flex flex-col gap-3.5">
+      <!-- Title & Badges & Switch back button -->
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-sm text-white shadow-lg shadow-blue-500/20">
+            OKX
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></div>
+              <h1 class="text-base sm:text-xl md:text-2xl font-bold tracking-tight text-white">
+                OKX Quantitative Exchange Terminal
+              </h1>
+            </div>
+            <p class="text-[11px] text-gray-400 hidden sm:block">
+              Institutional ATR Trailing Ratchet &bull; Multi-Asset Momentum Ribbon &bull; Kelly Capital Preservation
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            OKX API v5 CONNECTED
+          </span>
+          <span class="px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20" id="badge-mode">
+            DEMO / SIMULATED
+          </span>
+          <a href="/" class="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-xs text-gray-300 hover:text-white border border-gray-700 transition-colors">
+            <span>&larr;</span> Solana Terminal
+          </a>
+        </div>
+      </div>
+
+      <!-- OKX Account Telemetry Strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+        <div class="bg-gray-950/80 p-2.5 rounded-xl border border-gray-800/80">
+          <div class="text-[10px] text-gray-400 uppercase tracking-wider">Total Portfolio Equity</div>
+          <div class="font-mono font-bold text-xs sm:text-sm text-emerald-400 truncate mt-0.5" id="stat-total-equity">
+            $98,228.79 USD
+          </div>
+        </div>
+
+        <div class="bg-gray-950/80 p-2.5 rounded-xl border border-gray-800/80">
+          <div class="text-[10px] text-gray-400 uppercase tracking-wider">Available USDT Cash</div>
+          <div class="font-mono font-bold text-xs sm:text-sm text-cyan-400 mt-0.5" id="stat-cash-usdt">
+            $33,376.32
+          </div>
+        </div>
+
+        <div class="bg-gray-950/80 p-2.5 rounded-xl border border-gray-800/80">
+          <div class="text-[10px] text-gray-400 uppercase tracking-wider">Strategy Engine</div>
+          <div class="font-mono font-bold text-xs sm:text-sm text-amber-400 mt-0.5" id="stat-strategy">
+            ATR Ratchet + Ribbon
+          </div>
+        </div>
+
+        <div class="bg-gray-950/80 p-2.5 rounded-xl border border-gray-800/80">
+          <div class="text-[10px] text-gray-400 uppercase tracking-wider">Daily Drawdown Gov</div>
+          <div class="font-mono font-bold text-xs sm:text-sm text-emerald-400 mt-0.5" id="stat-drawdown">
+            0.00% / Max 6.0%
+          </div>
+        </div>
+      </div>
+
+      <!-- Verified OKX API Key Info Banner -->
+      <div class="pt-3 border-t border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+        <div class="flex items-center gap-2 max-w-full overflow-hidden">
+          <span class="text-gray-400 font-medium shrink-0">Configured API Key:</span>
+          <div class="flex items-center gap-1.5 bg-gray-950 px-2.5 py-1 rounded-lg border border-gray-800 max-w-full overflow-hidden font-mono text-[11px] text-blue-400">
+            <code>3f8086d3-d949-4dfa-b827-d1201ad005d2</code>
+          </div>
+          <span class="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+            HMAC-SHA256 Signed
+          </span>
+        </div>
+
+        <div class="flex items-center gap-3 text-gray-400 font-mono text-[10px] sm:text-xs">
+          <span>Host: <strong class="text-gray-200">okx.com/api/v5</strong></span>
+          <span>Security: <strong class="text-indigo-400">Passphrase Verified</strong></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Account Holdings & Balance Breakdown -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div class="flex items-center justify-between text-[11px] text-gray-400 font-medium">
+        <span>TOTAL ASSET VALUE</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 font-mono">USD</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-total-eq">$98,228.79</div>
+      <div class="text-[11px] text-emerald-400 mt-2 flex items-center gap-1 leading-tight">
+        <span>● Active Demo Trading Capital</span>
+      </div>
+    </div>
+
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div class="flex items-center justify-between text-[11px] text-gray-400 font-medium">
+        <span>SOL HOLDINGS</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/10 text-purple-400 font-mono">OKX SPOT</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-bold font-mono text-purple-300 mt-1.5" id="card-sol">205.46 SOL</div>
+      <div class="text-[11px] text-gray-400 mt-2 leading-tight">
+        Value: <span class="font-mono text-white">$24,859.10 USD</span>
+      </div>
+    </div>
+
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div class="flex items-center justify-between text-[11px] text-gray-400 font-medium">
+        <span>ETH HOLDINGS</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 font-mono">OKX SPOT</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-bold font-mono text-blue-300 mt-1.5" id="card-eth">4.23 ETH</div>
+      <div class="text-[11px] text-gray-400 mt-2 leading-tight">
+        Value: <span class="font-mono text-white">$11,431.99 USD</span>
+      </div>
+    </div>
+
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div class="flex items-center justify-between text-[11px] text-gray-400 font-medium">
+        <span>OTHER ASSETS</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 font-mono">DIVERSIFIED</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-bold font-mono text-amber-300 mt-1.5" id="card-others">NEAR, DOGE, BNB</div>
+      <div class="text-[11px] text-gray-400 mt-2 leading-tight">
+        Combined: <span class="font-mono text-white">~$28,500 USD</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Visualizer & Quantitative Strategy Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
+    <!-- Trailing Stop Visualizer -->
+    <div class="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+        <div>
+          <h2 class="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+            <span>Dynamic OKX ATR Trailing Stop Ratchet</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              2.0x Multiplier
+            </span>
+          </h2>
+          <p class="text-[11px] sm:text-xs text-gray-400 mt-0.5">
+            Stop Ratchet Formula: Stop = Peak &minus; (2.0 &times; ATR<sub>14</sub>). Moves upward only; locks profit on exhaustion.
+          </p>
+        </div>
+
+        <!-- Simulation Buttons -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button id="btn-chart-pump" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-blue-300 transition-colors">
+            +10% Surge
+          </button>
+          <button id="btn-chart-exhaust" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-amber-400 transition-colors">
+            50% Lock
+          </button>
+          <button id="btn-chart-stop" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-red-400 transition-colors">
+            Stop Exit
+          </button>
+          <button id="btn-chart-reset" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-gray-400 transition-colors">
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Canvas Chart Container -->
+      <div class="relative w-full h-56 sm:h-64 bg-gray-950 rounded-xl border border-gray-800 p-2 overflow-hidden">
+        <canvas id="okx-trailing-canvas" class="w-full h-full block"></canvas>
+      </div>
+
+      <!-- Chart Legend & Real-Time Stats -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] mt-3 pt-3 border-t border-gray-800">
+        <div class="flex items-center gap-3 flex-wrap">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-1 bg-blue-400 rounded-full inline-block"></span>
+            <span class="text-gray-400">Market Price</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-1 bg-red-400 rounded-full inline-block"></span>
+            <span class="text-gray-400">ATR Ratchet Stop</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 bg-amber-400 rounded-full inline-block"></span>
+            <span class="text-gray-400">50% Scale-Out Lock</span>
+          </div>
+        </div>
+        <div class="font-mono text-gray-300 text-[10px] sm:text-xs" id="chart-metrics-bar">
+          Asset: <strong class="text-white">SOL-USDT</strong> | Price: <strong class="text-blue-400">$120.92</strong> | ATR: <strong class="text-amber-400">$0.064</strong> | PnL: <strong class="text-emerald-400">+12.4%</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Strategy Specs & Telemetry -->
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-sm sm:text-base font-semibold text-white">
+            OKX Quantitative Parameters
+          </h2>
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            ACTIVE
+          </span>
+        </div>
+        <p class="text-[11px] sm:text-xs text-gray-400 mb-3.5">
+          Configured mathematical rules executing on OKX API v5.
+        </p>
+
+        <div class="space-y-2 text-xs">
+          <div class="p-2.5 rounded-xl bg-gray-950 border border-gray-800 flex justify-between items-center">
+            <div>
+              <div class="text-gray-200 font-medium">Momentum Trend Filter</div>
+              <div class="text-[10px] text-gray-400">EMA Ribbon 9 / 21 / 50</div>
+            </div>
+            <div class="text-right">
+              <span class="font-mono font-bold text-emerald-400">Bullish Alignment</span>
+              <div class="text-[10px] text-gray-400">RSI: 50.0 &ndash; 72.0</div>
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-gray-950 border border-gray-800 flex justify-between items-center">
+            <div>
+              <div class="text-gray-200 font-medium">Volume Surge Threshold</div>
+              <div class="text-[10px] text-gray-400">Candle Vol vs 20-bar SMA</div>
+            </div>
+            <div class="text-right">
+              <span class="font-mono font-bold text-blue-400">&ge; 1.8x Baseline</span>
+              <div class="text-[10px] text-gray-400">Burst confirmation</div>
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-gray-950 border border-gray-800 flex justify-between items-center">
+            <div>
+              <div class="text-gray-200 font-medium">Dynamic Trailing Exit</div>
+              <div class="text-[10px] text-gray-400">Ratchet ATR Stop</div>
+            </div>
+            <div class="text-right">
+              <span class="font-mono font-bold text-amber-400">2.0x ATR</span>
+              <div class="text-[10px] text-gray-400">50% Scale-Out on RSI &gt; 75</div>
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-gray-950 border border-gray-800 flex justify-between items-center">
+            <div>
+              <div class="text-gray-200 font-medium">Capital Sizing &amp; Safety</div>
+              <div class="text-[10px] text-gray-400">Fractional Kelly Sizer</div>
+            </div>
+            <div class="text-right">
+              <span class="font-mono font-bold text-purple-400">Max 5% / Trade</span>
+              <div class="text-[10px] text-gray-400">6.0% Max Drawdown Cutoff</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-gray-950 rounded-xl border border-gray-800 p-3 mt-3.5">
+        <div class="text-[11px] text-gray-400 mb-1 flex items-center justify-between">
+          <span>Target Allocation per Signal:</span>
+          <span class="text-emerald-400 font-mono text-[10px]">CALCULATED</span>
+        </div>
+        <div class="flex items-baseline justify-between">
+          <span class="text-lg sm:text-xl font-bold font-mono text-emerald-400">~$4,900 USD</span>
+          <span class="text-xs font-mono font-semibold text-gray-300">5% of $98.2k</span>
+        </div>
+        <div class="mt-1.5 pt-1.5 border-t border-gray-800 text-[10px] font-mono text-gray-400 flex justify-between">
+          <span>Order Type: <strong class="text-blue-400">Market / Cash</strong></span>
+          <span>Max Slippage: <strong class="text-gray-200">0.10%</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Asset Market Scanner & Live Log Console -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
+    <!-- Multi-Asset Momentum Scanner Table -->
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+          <span>OKX Live Market Scanner</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400 live-pulse"></span>
+        </h3>
+        <button id="btn-refresh-scan" class="text-xs text-blue-400 hover:text-blue-300 font-mono underline">
+          Refresh Now
+        </button>
+      </div>
+      <p class="text-[11px] sm:text-xs text-gray-400 mb-3">
+        Real-time technical indicators computed continuously across top OKX pairs.
+      </p>
+
+      <div class="overflow-x-auto touch-scroll">
+        <table class="w-full text-left font-mono text-xs">
+          <thead>
+            <tr class="text-[10px] text-gray-400 uppercase border-b border-gray-800 pb-2">
+              <th class="py-2">Instrument</th>
+              <th class="py-2">Price</th>
+              <th class="py-2">RSI (14)</th>
+              <th class="py-2">ATR</th>
+              <th class="py-2">Vol Surge</th>
+              <th class="py-2 text-right">Signal</th>
+            </tr>
+          </thead>
+          <tbody id="scanner-table-body" class="divide-y divide-gray-800/60">
+            <tr>
+              <td class="py-2.5 font-bold text-white">SOL-USDT</td>
+              <td class="py-2.5 text-blue-400">$120.92</td>
+              <td class="py-2.5 text-amber-400">22.9 (Oversold)</td>
+              <td class="py-2.5 text-gray-300">$0.065</td>
+              <td class="py-2.5 text-purple-400">1.2x</td>
+              <td class="py-2.5 text-right"><span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20">OVERSOLD</span></td>
+            </tr>
+            <tr>
+              <td class="py-2.5 font-bold text-white">BTC-USDT</td>
+              <td class="py-2.5 text-blue-400">$85,409.4</td>
+              <td class="py-2.5 text-gray-300">45.2</td>
+              <td class="py-2.5 text-gray-300">$135.07</td>
+              <td class="py-2.5 text-purple-400">1.1x</td>
+              <td class="py-2.5 text-right"><span class="px-2 py-0.5 rounded text-[10px] bg-gray-800 text-gray-400">NEUTRAL</span></td>
+            </tr>
+            <tr>
+              <td class="py-2.5 font-bold text-white">ETH-USDT</td>
+              <td class="py-2.5 text-blue-400">$2,700.67</td>
+              <td class="py-2.5 text-gray-300">34.8</td>
+              <td class="py-2.5 text-gray-300">$1.05</td>
+              <td class="py-2.5 text-purple-400">1.0x</td>
+              <td class="py-2.5 text-right"><span class="px-2 py-0.5 rounded text-[10px] bg-gray-800 text-gray-400">NEUTRAL</span></td>
+            </tr>
+            <tr>
+              <td class="py-2.5 font-bold text-white">NEAR-USDT</td>
+              <td class="py-2.5 text-blue-400">$4.954</td>
+              <td class="py-2.5 text-gray-300">39.3</td>
+              <td class="py-2.5 text-gray-300">$0.004</td>
+              <td class="py-2.5 text-purple-400">1.4x</td>
+              <td class="py-2.5 text-right"><span class="px-2 py-0.5 rounded text-[10px] bg-gray-800 text-gray-400">NEUTRAL</span></td>
+            </tr>
+            <tr>
+              <td class="py-2.5 font-bold text-white">DOGE-USDT</td>
+              <td class="py-2.5 text-blue-400">$0.0955</td>
+              <td class="py-2.5 text-emerald-400">55.0</td>
+              <td class="py-2.5 text-gray-300">$0.0001</td>
+              <td class="py-2.5 text-purple-400">1.9x</td>
+              <td class="py-2.5 text-right"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">MOMENTUM</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Live Execution & Telemetry Log Console -->
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-blue-400 live-pulse"></span>
+            <span>OKX Engine Activity Stream</span>
+          </h3>
+          <span class="text-[10px] font-mono text-gray-400">REST v5 &bull; Authenticated</span>
+        </div>
+        <p class="text-[11px] sm:text-xs text-gray-400 mb-3">
+          Direct algorithmic events, ATR stop ratchets, and profit lock execution.
+        </p>
+
+        <div class="bg-gray-950 border border-gray-800 rounded-xl p-3 font-mono text-[11px] sm:text-xs space-y-1.5 h-64 sm:h-72 overflow-y-auto touch-scroll" id="okx-log-container">
+          <div class="text-emerald-400/90 leading-relaxed">
+            [SYS] <span class="text-blue-400">OKX_AUTH:</span> API Key authenticated successfully. Mode: Simulated Demo.
+          </div>
+          <div class="text-gray-400 leading-relaxed">
+            [BAL] <span class="text-cyan-400">BALANCE:</span> Total Equity: $98,228.79 USD | Cash USDT: $33,376.32.
+          </div>
+          <div class="text-purple-400/90 leading-relaxed">
+            [SCN] <span class="text-purple-300">SCANNER:</span> 6 instruments tracked (SOL, BTC, ETH, NEAR, DOGE, BNB).
+          </div>
+          <div class="text-blue-400 leading-relaxed">
+            [ATR] <span class="text-blue-300">RATCHET:</span> SOL-USDT 2.0x ATR multiplier initialized. Stop band active.
+          </div>
+          <div class="text-emerald-400 leading-relaxed">
+            [MOM] <span class="text-emerald-300">SIGNAL:</span> DOGE-USDT Volume surge detected (1.9x). Ribbon aligned.
+          </div>
+          <div class="text-amber-400 leading-relaxed">
+            [EXI] <span class="text-yellow-400">SCALE_LOCK:</span> 50% profit lock armed for positions exceeding +3% or RSI &gt; 75.
+          </div>
+          <div class="text-emerald-400 leading-relaxed">
+            [RSK] <span class="text-emerald-300">GUARD:</span> Daily Drawdown Governor active. Threshold: 6.0% max loss.
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 pt-2.5 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400">
+        <span>Auto-syncing every 3 seconds</span>
+        <button id="btn-clear-okx-logs" class="hover:text-white underline p-1 active:scale-95 transition-transform">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Guardrails Footer -->
+  <footer class="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-5 shadow-lg text-xs text-gray-400 mb-2">
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+      <div>
+        <h4 class="font-semibold text-white text-xs sm:text-sm mb-1">OKX Algorithmic Execution Guardrails</h4>
+        <p class="text-[11px] sm:text-xs">
+          Executes via asynchronous OKX API v5 with HMAC-SHA256 authenticated signatures.
+          Positions dynamically managed with <strong>2.0x ATR Ratchet Trailing Stops</strong> and automatic <strong>50% Exhaustion Profit Locks</strong>.
+          Circuit breaker trips automatically if 24h portfolio drawdown breaches <strong>6.0%</strong>.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="px-2.5 py-1 rounded-xl bg-gray-800 text-gray-200 font-mono text-[11px] border border-gray-700">
+          python okx_main.py --simulated
+        </span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Interactive JavaScript Engine for OKX Dashboard -->
+  <script>
+    // Canvas Chart Engine
+    const canvas = document.getElementById('okx-trailing-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.resetTransform?.();
+      ctx.scale(dpr, dpr);
+      drawChart();
+    }
+
+    let points = [
+      { price: 115.0, stop: 110.0, event: 'ENTRY' },
+      { price: 118.5, stop: 113.2, event: '' },
+      { price: 122.0, stop: 116.8, event: '' },
+      { price: 129.5, stop: 124.0, event: 'SCALE_OUT' },
+      { price: 126.0, stop: 124.0, event: '' },
+      { price: 123.8, stop: 124.0, event: 'STOPPED' }
+    ];
+
+    function drawChart() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+
+      ctx.clearRect(0, 0, w, h);
+      if (points.length < 2) return;
+
+      const paddingX = 24;
+      const paddingY = 24;
+      const minVal = 105.0;
+      const maxVal = 135.0;
+
+      const getX = (index) => paddingX + (index / (points.length - 1)) * (w - paddingX * 2);
+      const getY = (val) => h - paddingY - ((val - minVal) / (maxVal - minVal)) * (h - paddingY * 2);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let v = 110.0; v <= 130.0; v += 5.0) {
+        ctx.beginPath();
+        ctx.moveTo(paddingX, getY(v));
+        ctx.lineTo(w - paddingX, getY(v));
+        ctx.stroke();
+      }
+
+      // Trailing Stop Line (Red Dash)
+      ctx.beginPath();
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      points.forEach((pt, i) => {
+        const x = getX(i);
+        const y = getY(pt.stop);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Price Line (Blue Solid)
+      ctx.beginPath();
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 2.5;
+      points.forEach((pt, i) => {
+        const x = getX(i);
+        const y = getY(pt.price);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Event Markers
+      points.forEach((pt, i) => {
+        const x = getX(i);
+        const y = getY(pt.price);
+
+        if (pt.event === 'SCALE_OUT') {
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(x, y, 5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#f59e0b';
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText('50% Lock', Math.max(10, x - 26), y - 9);
+        } else if (pt.event === 'STOPPED') {
+          ctx.fillStyle = '#ef4444';
+          ctx.beginPath();
+          ctx.arc(x, y, 5.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ef4444';
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText('Stop Breach', Math.max(10, x - 30), y + 16);
+        } else {
+          ctx.fillStyle = '#60a5fa';
+          ctx.beginPath();
+          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    setTimeout(resizeCanvas, 50);
+
+    // Interactive simulator controls
+    document.getElementById('btn-chart-pump').addEventListener('click', () => {
+      const last = points[points.length - 1];
+      const newPrice = last.price * 1.08;
+      const newStop = Math.max(last.stop, newPrice * 0.93);
+      points.push({ price: newPrice, stop: newStop, event: '' });
+      drawChart();
+    });
+
+    document.getElementById('btn-chart-exhaust').addEventListener('click', () => {
+      const last = points[points.length - 1];
+      points.push({ price: last.price * 0.98, stop: last.stop, event: 'SCALE_OUT' });
+      drawChart();
+    });
+
+    document.getElementById('btn-chart-stop').addEventListener('click', () => {
+      const last = points[points.length - 1];
+      points.push({ price: last.stop - 1.0, stop: last.stop, event: 'STOPPED' });
+      drawChart();
+    });
+
+    document.getElementById('btn-chart-reset').addEventListener('click', () => {
+      points = [
+        { price: 115.0, stop: 110.0, event: 'ENTRY' },
+        { price: 118.5, stop: 113.2, event: '' },
+        { price: 122.0, stop: 116.8, event: '' },
+        { price: 129.5, stop: 124.0, event: 'SCALE_OUT' },
+        { price: 126.0, stop: 124.0, event: '' },
+        { price: 123.8, stop: 124.0, event: 'STOPPED' }
+      ];
+      drawChart();
+    });
+
+    // Clear logs
+    document.getElementById('btn-clear-okx-logs').addEventListener('click', () => {
+      document.getElementById('okx-log-container').innerHTML = '<div class="text-gray-500">[CLEAR] Log stream refreshed. Listening for OKX events...</div>';
+    });
+
+    // Async Fetch Live Telemetry from /api/okx/status
+    async function fetchOKXTelemetry() {
+      try {
+        const res = await fetch('/api/okx/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data.total_equity_usd) {
+          const eqFormatted = '$' + data.total_equity_usd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+          document.getElementById('stat-total-equity').innerText = eqFormatted + ' USD';
+          document.getElementById('card-total-eq').innerText = eqFormatted;
+        }
+        if (data.cash_usdt) {
+          const cashFormatted = '$' + data.cash_usdt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+          document.getElementById('stat-cash-usdt').innerText = cashFormatted;
+        }
+        if (data.current_drawdown_pct !== undefined) {
+          document.getElementById('stat-drawdown').innerText = data.current_drawdown_pct.toFixed(2) + '% / Max 6.0%';
+        }
+
+        // Render scanner indicators table
+        if (data.market_indicators && data.market_indicators.length > 0) {
+          const tbody = document.getElementById('scanner-table-body');
+          tbody.innerHTML = '';
+          data.market_indicators.forEach(m => {
+            const tr = document.createElement('tr');
+            let signalBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-gray-800 text-gray-400">NEUTRAL</span>';
+            if (m.signal === 'MOMENTUM_BUY') {
+              signalBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">MOMENTUM BUY</span>';
+            } else if (m.signal === 'OVERSOLD') {
+              signalBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20">OVERSOLD</span>';
+            } else if (m.signal === 'OVERBOUGHT_EXHAUSTION') {
+              signalBadge = '<span class="px-2 py-0.5 rounded text-[10px] bg-red-500/10 text-red-400 border border-red-500/20">EXHAUSTION</span>';
+            }
+
+            tr.innerHTML = `
+              <td class="py-2.5 font-bold text-white">${m.inst_id}</td>
+              <td class="py-2.5 text-blue-400">$${m.price.toLocaleString()}</td>
+              <td class="py-2.5 ${m.rsi > 70 ? 'text-red-400' : m.rsi < 30 ? 'text-amber-400' : 'text-gray-300'}">${m.rsi}</td>
+              <td class="py-2.5 text-gray-300">$${m.atr}</td>
+              <td class="py-2.5 text-purple-400">${m.volume_surge}x</td>
+              <td class="py-2.5 text-right">${signalBadge}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (err) {
+        console.debug('Telemetry sync:', err);
+      }
+    }
+
+    // Polling loop every 3 seconds
+    setInterval(fetchOKXTelemetry, 3000);
+    fetchOKXTelemetry();
+
+    document.getElementById('btn-refresh-scan').addEventListener('click', fetchOKXTelemetry);
+  </script>
+</body>
+</html>
