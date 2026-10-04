@@ -62,7 +62,7 @@ async def okx_background_worker(app: web.Application):
                 await engine.run_cycle()
             except Exception as e:
                 print(f"[!] OKX worker error: {e}")
-            await asyncio.sleep(6)
+            await asyncio.sleep(3)
     except asyncio.CancelledError:
         print("[*] OKX background worker stopped.")
 

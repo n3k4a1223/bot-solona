@@ -190,6 +190,34 @@ class OKXClient:
             }
         return {}
 
+    async def get_all_usdt_tickers(self, min_vol_usdt: float = 300_000.0) -> List[Dict[str, Any]]:
+        """
+        Scan all spot tickers across OKX, filter active USDT pairs,
+        exclude stablecoin pairs, and sort by 24h volume.
+        """
+        res = await self._request("GET", "/api/v5/market/tickers", params={"instType": "SPOT"})
+        stablecoins = {"USDC-USDT", "FDUSD-USDT", "DAI-USDT", "EURT-USDT", "TUSD-USDT", "USDE-USDT", "PYUSD-USDT"}
+        pairs = []
+        if res.get("code") == "0" and res.get("data"):
+            for t in res["data"]:
+                inst_id = t.get("instId", "")
+                if inst_id.endswith("-USDT") and inst_id not in stablecoins:
+                    vol_ccy = float(t.get("volCcy24h", 0.0) or 0.0)
+                    last_px = float(t.get("last", 0.0) or 0.0)
+                    if vol_ccy >= min_vol_usdt and last_px > 0:
+                        open_px = float(t.get("sodUtc0", 0.0) or t.get("open24h", 0.0) or last_px)
+                        chg_pct = ((last_px - open_px) / open_px * 100.0) if open_px > 0 else 0.0
+                        pairs.append({
+                            "inst_id": inst_id,
+                            "last": last_px,
+                            "vol_ccy": vol_ccy,
+                            "high24h": float(t.get("high24h", 0.0) or 0.0),
+                            "low24h": float(t.get("low24h", 0.0) or 0.0),
+                            "change_pct": round(chg_pct, 2),
+                        })
+            pairs.sort(key=lambda x: x["vol_ccy"], reverse=True)
+        return pairs
+
     async def get_candles(self, inst_id: str, bar: str = "1m", limit: int = 60) -> List[Dict[str, Any]]:
         """
         Retrieve historical OHLCV candle bars.

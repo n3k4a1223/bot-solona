@@ -45,9 +45,9 @@ def parse_args():
     )
     parser.add_argument(
         "--interval",
-        type=int,
-        default=5,
-        help="Cycle interval in seconds (default: 5s)",
+        type=float,
+        default=2.0,
+        help="Cycle interval in seconds (default: 2.0s for high-speed scalping)",
     )
     return parser.parse_args()
 
@@ -118,23 +118,26 @@ async def main():
 
     if bal.get("success"):
         print(f"[*] Account Equity: ${bal.get('total_eq_usd', 0):,.2f} USD", flush=True)
-        print(f"[*] Monitored Instruments: {', '.join(engine.DEFAULT_WATCHLIST)}", flush=True)
+        print("[*] Strategy Engine: OKX Ultra-Fast All-Coin Momentum Scalper (Scanning 400+ Coins)", flush=True)
+        print("[*] Lightning-Fast Profit Locks: +0.5% Breakeven | +1.2% (50% Lock) | +2.2% (Tier 2 Lock)", flush=True)
+        print(f"[*] Dynamic Trailing Multiplier: 1.2x ATR (Tightens to 0.8x in profit)", flush=True)
     else:
         print(f"[!] Warning: Initial balance fetch failed: {bal.get('msg')}", flush=True)
 
-    print("\n[*] Starting autonomous quantitative scan loop. Press Ctrl+C to exit.\n", flush=True)
+    print("\n[*] Starting autonomous high-speed scan loop. Press Ctrl+C to exit.\n", flush=True)
 
     try:
         while True:
             await engine.run_cycle()
             t = engine.get_telemetry()
             
-            # Print brief heartbeat
+            # Print high-frequency heartbeat
             print(
                 f"[{time.strftime('%H:%M:%S')}] "
                 f"Equity: ${t['total_equity_usd']:,.2f} | "
-                f"Cash USDT: ${t['cash_usdt']:,.2f} | "
-                f"Positions: {len(t['open_positions'])} | "
+                f"Cash: ${t['cash_usdt']:,.2f} | "
+                f"Coins Tracked: {t.get('universe_coins_tracked', 0)}/{t.get('total_market_pairs', 0)} | "
+                f"Open Positions: {len(t['open_positions'])} | "
                 f"Drawdown: {t['current_drawdown_pct']:.2f}% "
                 f"{'[CIRCUIT TRIPPED]' if t['circuit_tripped'] else ''}",
                 flush=True
@@ -142,9 +145,13 @@ async def main():
             
             # Log any active positions
             for pos in t["open_positions"]:
+                pnl_color = "+" if pos['pnl_pct'] >= 0 else ""
                 print(
-                    f"    -> [{pos['inst_id']}] Sz: {pos['size']} | Entry: ${pos['entry_price']} | "
-                    f"Stop: ${pos['trailing_stop']} | PnL: {pos['pnl_pct']:+.2f}% (${pos['pnl_usd']:+.2f})",
+                    f"    ⚡ [{pos['inst_id']}] Sz: {pos['size']} | Entry: ${pos['entry_price']} | "
+                    f"Stop: ${pos['trailing_stop']} | PnL: {pnl_color}{pos['pnl_pct']:.2f}% (${pnl_color}{pos['pnl_usd']:.2f})"
+                    f"{' [🛡️ BREAKEVEN]' if pos.get('breakeven_set') else ''}"
+                    f"{' [⚡ 50% PROFIT LOCKED]' if pos.get('scaled_out_tier1') else ''}"
+                    f"{' [🚀 TIER 2 LOCKED]' if pos.get('scaled_out_tier2') else ''}",
                     flush=True
                 )
 
