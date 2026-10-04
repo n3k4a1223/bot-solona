@@ -6,7 +6,8 @@
 [![Solana](https://img.shields.io/badge/Solana-Mainnet--Beta-green.svg)](https://solana.com/)
 [![Jupiter v6](https://img.shields.io/badge/Jupiter-v6%20Swap%20API-orange.svg)](https://jup.ag/)
 [![Jito MEV](https://img.shields.io/badge/Jito-MEV%20Bundles-purple.svg)](https://jito.wtf/)
-[![Render](https://img.shields.io/badge/Render-Deploy%20Ready-black.svg)](https://render.com)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Hosted-brightgreen.svg)](https://n3k4a1223.github.io/bot-solona/)
+[![Vercel](https://img.shields.io/badge/Vercel-Deploy%20Ready-black.svg)](https://vercel.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 An institutional-grade, fully asynchronous Solana algorithmic trading system and live mobile-optimized dashboard engineered in Python (`solders`, `solana-py`, `aiohttp`, `websockets`).
@@ -15,27 +16,24 @@ The architecture strictly rejects rigid, hardcoded trade rules. Instead, entry s
 
 ---
 
-## 🚀 Hosting on Render (render.com)
+## 🚀 Free Cloud Hosting (باشترین هۆستی خۆڕایی)
 
-This repository is pre-configured for **instant hosting on Render**:
+داشبۆردەکەت دەتوانیت بە تەواوی **بە خۆڕایی و ٢٤ کاتژمێر کارا** بە یەکێک لەم دوو باشترین پلاتفۆرمە جیهانییە هۆست بکەیت:
 
-### Method 1: Web Service (Recommended)
-1. Go to [Render Dashboard](https://dashboard.render.com/) and click **New + > Web Service**.
-2. Connect your GitHub repository `n3k4a1223/bot-solona`.
-3. Render will automatically detect `render.yaml` or you can set:
-   - **Runtime**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python server.py`
-   - **Health Check Path**: `/health`
-4. Click **Deploy**. Your live mobile-friendly dashboard will be available at `https://your-app.onrender.com`!
+### ڕێگای یەکەم: GitHub Pages (ئاسانترین و بێ ماڵپەڕی دەرەکی - ١٠٠٪ خۆڕایی)
+چونکە پرۆژەکەت لەسەر گیتھەبە، پێویستت بە هیچ ماڵپەڕێکی دیکە نییە:
+1. لەناو لاپەڕەی گیتھەبەکەت لە [github.com/n3k4a1223/bot-solona](https://github.com/n3k4a1223/bot-solona) بڕۆ بۆ بەشی **Settings** (لە سەرەوە لای ڕاست).
+2. لە مینیۆی چەپ کلیک لەسەر **Pages** بکە.
+3. لە ژێر بەشی **Build and deployment**:
+   - لە **Source** هەڵبژێرە: **GitHub Actions** (یان هەڵبژێرە `Deploy from a branch` و لقی `main` دیاریبکە).
+4. تەواو! گیتھەب دەستبەجێ ماڵپەڕەکەت بە خۆڕایی بڵاودەکاتەوە لەسەر ئەم ناونیشانە:
+   👉 **`https://n3k4a1223.github.io/bot-solona/`**
 
-### Method 2: Static Site (100% Free & Fast)
-1. In Render, select **New + > Static Site**.
-2. Connect `n3k4a1223/bot-solona`.
-3. Set:
-   - **Build Command**: `echo "Build ready"`
-   - **Publish Directory**: `.`
-4. Click **Create Static Site**. Render will serve `index.html` across its global CDN.
+### ڕێگای دووەم: Vercel (خێراترین سێرڤەری کلاود لە جیهاندا - خۆڕایی)
+فایلی فەرمی [`vercel.json`](./vercel.json) لە پرۆژەکەدا ئامادەیە:
+1. بچۆ ناو [Vercel.com](https://vercel.com) و بە ئەکاونتی GitHub بچۆ ژوورەوە.
+2. کلیک لە **Add New > Project** بکە و ڕێپۆزیتۆری **`bot-solona`** هەڵبژێرە.
+3. کلیک لە دوگمەی **Deploy** بکە. بە ٥ چرکە لینکێکی خێرات پێدەدات (وەک `https://bot-solona.vercel.app`).
 
 ---
 
