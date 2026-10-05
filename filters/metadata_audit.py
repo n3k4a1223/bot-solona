@@ -69,11 +69,13 @@ class TokenMetadataAuditor:
         min_market_cap_usd: float = 3000.0,
         max_market_cap_usd: float = 15000.0,
         sol_price_usd: float = 120.0,
+        require_matching_website: bool = False,
     ):
         self.rpc = rpc_balancer
         self.min_market_cap_usd = min_market_cap_usd
         self.max_market_cap_usd = max_market_cap_usd
         self.sol_price_usd = sol_price_usd
+        self.require_matching_website = require_matching_website
         self.logger = get_logger()
 
     @staticmethod
@@ -283,9 +285,9 @@ class TokenMetadataAuditor:
                 failure_reason=fail_reason,
             )
 
-        # 4. Check Website Requirement and Matching (Requirement 1)
+        # 4. Check Website Requirement and Matching
         has_website, matches_name, web_fail = self.verify_website_match(token_name, token_symbol, website_url)
-        if not has_website or not matches_name:
+        if self.require_matching_website and (not has_website or not matches_name):
             fail_reason = f"REJECTED: {web_fail}"
             return TokenMetadataAudit(
                 token_mint=token_mint,
@@ -301,14 +303,14 @@ class TokenMetadataAuditor:
                 failure_reason=fail_reason,
             )
 
-        # All 3 requirements passed!
+        # Requirements passed!
         return TokenMetadataAudit(
             token_mint=token_mint,
             token_name=token_name,
             token_symbol=token_symbol,
             website_url=website_url,
-            has_website=True,
-            website_matches_name=True,
+            has_website=has_website,
+            website_matches_name=matches_name,
             is_major_clone=False,
             matched_major_asset=None,
             market_cap_usd=market_cap_usd,

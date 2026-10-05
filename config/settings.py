@@ -155,8 +155,8 @@ class BotConfig(BaseSettings):
     # 5. Adaptive Entry & Momentum Systems
     # -------------------------------------------------------------------------
     MAX_ACTIVE_POSITIONS: int = Field(
-        default=1,
-        description="Maximum concurrent open positions. Strictly 1 for sequential single-token compounding.",
+        default=2,
+        description="Maximum concurrent open positions. Set to 2 concurrent positions (2 coins opened simultaneously).",
     )
     SNIPER_DELAY_SECONDS: float = Field(
         default=5.0,
@@ -164,7 +164,7 @@ class BotConfig(BaseSettings):
     )
     TARGET_TAKE_PROFIT_PCT: float = Field(
         default=100.0,
-        description="Target profit percentage to trigger 100% full exit (e.g. 100% = 2x gain, $20 -> $40).",
+        description="Target profit percentage to trigger 100% full exit (e.g. 100% = 2x gain, $5 -> $10).",
     )
     TARGET_BUY_USD: float = Field(
         default=5.0,
@@ -179,8 +179,8 @@ class BotConfig(BaseSettings):
         description="Maximum market cap in USD to qualify for sniper buy ($15,000).",
     )
     REQUIRE_MATCHING_WEBSITE: bool = Field(
-        default=True,
-        description="Mandate token has a live website whose domain name matches the token name.",
+        default=False,
+        description="Mandate token has a live website whose domain name matches the token name. Set to False so newly listed pump.fun/raydium tokens can be sniped.",
     )
     REJECT_MAJOR_COIN_CLONES: bool = Field(
         default=True,

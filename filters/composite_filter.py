@@ -47,6 +47,7 @@ class CompositeRiskEvaluator:
         min_market_cap_usd: float = 3000.0,
         max_market_cap_usd: float = 15000.0,
         sol_price_usd: float = 120.0,
+        require_matching_website: bool = False,
     ):
         self.security_filter = TokenSecurityFilter(rpc_balancer)
         self.holder_analyzer = HolderDistributionAnalyzer(
@@ -65,6 +66,7 @@ class CompositeRiskEvaluator:
             min_market_cap_usd=min_market_cap_usd,
             max_market_cap_usd=max_market_cap_usd,
             sol_price_usd=sol_price_usd,
+            require_matching_website=require_matching_website,
         )
         self.honeypot_filter = HoneypotSimulationFilter(
             rpc_balancer,

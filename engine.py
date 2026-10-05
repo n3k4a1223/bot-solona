@@ -81,6 +81,7 @@ class TradingEngine:
             max_roundtrip_loss_pct=self.config.MAX_SIMULATION_ROUNDTRIP_LOSS_PCT,
             min_market_cap_usd=self.config.MIN_MARKET_CAP_USD,
             max_market_cap_usd=self.config.MAX_MARKET_CAP_USD,
+            require_matching_website=self.config.REQUIRE_MATCHING_WEBSITE,
         )
         self.momentum_tracker = MomentumTracker(
             window_seconds=self.config.INFLOW_WINDOW_SECONDS,
