@@ -198,8 +198,7 @@ class OpenPosition:
     @property
     def unrealized_pnl_sol(self) -> float:
         """Calculate approximate unrealized SOL gain/loss."""
-        current_value = (self.tokens_amount * self.current_price_sol)
-        return current_value - self.sol_invested
+        return self.sol_invested * (self.unrealized_pnl_pct / 100.0)
 
 
 @dataclass

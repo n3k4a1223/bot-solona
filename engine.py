@@ -328,8 +328,7 @@ class TradingEngine:
             )
 
             if success and tokens_acquired > 0:
-                actual_entry_price = (final_sol / (tokens_acquired / 1e6)) if tokens_acquired > 0 else pool_data["price_sol"]
-                price_sol = actual_entry_price if actual_entry_price > 0 else pool_data["price_sol"]
+                price_sol = pool_data["price_sol"]
                 initial_stop = price_sol * 0.65  # -35% hard stop baseline
 
                 pos = OpenPosition(
