@@ -95,14 +95,23 @@ class DynamicExitEngine:
         if calculated_stop > position.trailing_stop_price:
             position.trailing_stop_price = calculated_stop
 
-        # Check trailing stop breach
-        if current_price_sol <= position.trailing_stop_price:
-            pnl_pct = position.unrealized_pnl_pct
-            reason = (
-                f"Dynamic Trailing Stop Breached! Price: {current_price_sol:.8f} <= "
-                f"Stop: {position.trailing_stop_price:.8f} (PnL: {pnl_pct:+.2f}%)"
-            )
-            return TradeAction.STOP_LOSS, reason, 1.0
+        # Check stop loss breach (with 20s grace period for newly opened positions)
+        time_in_trade = now - position.entry_timestamp
+        if time_in_trade > 20.0:
+            hard_stop = position.entry_price_sol * 0.65  # -35% hard stop
+            if current_price_sol <= hard_stop:
+                reason = (
+                    f"Stop-Loss Cut (-35%)! Price dropped to {current_price_sol:.8f} "
+                    f"(PnL: {pnl_pct:+.1f}%). Exiting to protect remaining capital."
+                )
+                return TradeAction.STOP_LOSS, reason, 1.0
+
+            if position.trailing_stop_price > hard_stop and current_price_sol <= position.trailing_stop_price:
+                reason = (
+                    f"Dynamic Trailing Stop Breached! Price: {current_price_sol:.8f} <= "
+                    f"Stop: {position.trailing_stop_price:.8f} (PnL: {pnl_pct:+.1f}%)"
+                )
+                return TradeAction.STOP_LOSS, reason, 1.0
 
         # ---------------------------------------------------------------------
         # 2. Dynamic Profit Realization: Buyer Volume Exhaustion Scale-Out
