@@ -75,6 +75,10 @@ class AsyncBotLogger:
         formatted = f"[dim]{timestamp}[/] [bold red]ERROR[/] {message}"
         self._enqueue(formatted)
 
+    def log_debug(self, message: str) -> None:
+        """Format and enqueue debug message."""
+        pass
+
     def log_trade(
         self,
         action: str,
