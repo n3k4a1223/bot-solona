@@ -39,11 +39,11 @@ class PoolDetectionEvent:
     """Event emitted upon sub-millisecond detection of a new liquidity pool or injection."""
     pool_address: str
     token_mint: str
-    base_mint: str
-    quote_mint: str
-    pool_type: PoolType
-    initial_sol_liquidity: float
-    signature: str
+    base_mint: str = "So11111111111111111111111111111111111111112"
+    quote_mint: str = ""
+    pool_type: PoolType = PoolType.PUMP_FUN
+    initial_sol_liquidity: float = 0.0
+    signature: str = ""
     detected_at: float = field(default_factory=time.time)
 
 

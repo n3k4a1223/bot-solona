@@ -284,37 +284,36 @@ class TradingEngine:
             return
 
         # 2. Evaluate Momentum Inflow Velocity
+        pool_age = time.time() - pool_data.get("discovered_at", 0)
         momentum = self.momentum_tracker.evaluate_momentum(token_mint)
-        if not momentum.is_90th_percentile:
+        # For sniper listings (< 180s old), skip rolling 3-min momentum check to enable 5s sniper
+        if pool_age > 180.0 and not momentum.is_90th_percentile:
             return
 
         # 3. Calculate Volatility Metrics
         volatility = self.volatility_engine.calculate_volatility(token_mint)
 
-        # 4. Calculate Dynamic Position Size (Modified Kelly + Depth Adjusted)
-        risk_score = pool_data["risk_score"]
-        reserves_sol = pool_data["sol_reserves"]
-        size_rec = self.position_sizer.calculate_size(
-            wallet_balance_sol=self.wallet_liquid_sol,
-            pool_sol_reserves=reserves_sol,
-            risk_score=risk_score,
-            volatility=volatility,
-            momentum=momentum,
-        )
-
-        if size_rec.allocated_sol < 0.008:
+        # 4. Calculate Position Size ($5.00 entry per token)
+        sol_price = 125.0
+        target_sol = self.config.TARGET_BUY_USD / sol_price
+        # Leave at least 0.005 SOL buffer for transaction fees
+        max_allocatable = max(0.0, self.wallet_liquid_sol - 0.005)
+        if max_allocatable < 0.01:
+            self.logger.log_warning(
+                f"Insufficient balance ({self.wallet_liquid_sol:.4f} SOL) to allocate $5 trade. Keeping gas buffer."
+            )
             return
 
-        # Congestion throttle adjustment
-        final_sol = size_rec.allocated_sol * self.circuit_breaker.cluster_state.throttle_multiplier
+        final_sol = min(target_sol, max_allocatable)
 
         self.logger.log_info(
             f"ENTRY TRIGGERED for [bold cyan]{token_mint[:8]}[/]! "
-            f"Allocating: [bold white]{final_sol:.3f} SOL[/] ({size_rec.final_allocation_pct*100:.1f}%) | "
-            f"{size_rec.rationale}"
+            f"Allocating: [bold white]{final_sol:.4f} SOL[/] (~${final_sol * sol_price:.2f} USD) | "
+            f"Active Slots: {len(self.active_positions) + 1}/{self.config.MAX_ACTIVE_POSITIONS} | "
+            f"Target: +{self.config.TARGET_TAKE_PROFIT_PCT:.0f}% Doubler ($5 -> $10)"
         )
 
-        # 5. Execute Buy Swap via Jupiter & Jito MEV
+        # 5. Execute Buy Swap via PumpPortal / Jupiter & Jito MEV
         success, sig, tokens_acquired = await self.executor.execute_buy(
             token_mint=token_mint,
             amount_sol=final_sol,
@@ -330,7 +329,7 @@ class TradingEngine:
             pos = OpenPosition(
                 token_mint=token_mint,
                 pool_address=pool_data["pool_address"],
-                pool_type=PoolType.RAYDIUM_V4,
+                pool_type=PoolType.PUMP_FUN if token_mint.endswith("pump") else PoolType.RAYDIUM_V4,
                 entry_price_sol=price_sol,
                 current_price_sol=price_sol,
                 peak_price_sol=price_sol,
@@ -436,9 +435,9 @@ class TradingEngine:
 
     async def _dex_market_scanner_loop(self) -> None:
         """
-        Continuously polls DexScreener token profiles to detect newly launched Solana
-        tokens with authentic websites and market caps within $3,000 - $15,000 USD.
-        Acts as a resilient, rate-limit immune stream supplementing public WebSockets.
+        Continuously polls DexScreener token profiles and token boosts to detect newly launched Solana
+        tokens with market caps within $3,000 - $15,000 USD.
+        Supplements WebSockets to provide ultra-fast candidate discovery.
         """
         import aiohttp
 
@@ -451,61 +450,76 @@ class TradingEngine:
                 if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
                     continue
 
+                candidate_tokens = []
                 async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                    async with session.get("https://api.dexscreener.com/token-profiles/latest/v1") as resp:
-                        if resp.status != 200:
-                            continue
-                        profiles = await resp.json()
+                    # 1. Fetch latest profiles
+                    try:
+                        async with session.get("https://api.dexscreener.com/token-profiles/latest/v1") as resp:
+                            if resp.status == 200:
+                                profiles = await resp.json()
+                                if isinstance(profiles, list):
+                                    candidate_tokens.extend([p.get("tokenAddress") for p in profiles if p.get("chainId") == "solana"])
+                    except Exception:
+                        pass
 
-                    if not isinstance(profiles, list):
-                        continue
+                    # 2. Fetch latest boosts
+                    try:
+                        async with session.get("https://api.dexscreener.com/token-boosts/latest/v1") as resp:
+                            if resp.status == 200:
+                                boosts = await resp.json()
+                                if isinstance(boosts, list):
+                                    candidate_tokens.extend([b.get("tokenAddress") for b in boosts if b.get("chainId") == "solana"])
+                    except Exception:
+                        pass
 
-                    sol_profiles = [p for p in profiles if p.get("chainId") == "solana"]
-
-                    for prof in sol_profiles:
-                        token_mint = prof.get("tokenAddress")
-                        if not token_mint or token_mint in seen_mints:
+                    for token_mint in candidate_tokens:
+                        if not token_mint or token_mint in seen_mints or token_mint in self.active_positions or token_mint in self.monitored_pools:
                             continue
                         seen_mints.add(token_mint)
 
-                        # Extract pair address from profile url if available
-                        url = prof.get("url", "")
-                        pair_addr = url.split("/")[-1] if "/solana/" in url else token_mint
-
                         try:
-                            pair_api_url = f"https://api.dexscreener.com/latest/dex/pairs/solana/{pair_addr}"
-                            async with session.get(pair_api_url) as pair_resp:
+                            token_api_url = f"https://api.dexscreener.com/latest/dex/tokens/{token_mint}"
+                            async with session.get(token_api_url) as pair_resp:
                                 if pair_resp.status == 200:
                                     pair_data = await pair_resp.json()
-                                    pairs = pair_data.get("pairs") or [pair_data.get("pair")]
-                                    p = pairs[0] if pairs and pairs[0] else None
-                                    if p:
-                                        mc = float(p.get("marketCap", 0) or 0)
-                                        if mc < self.config.MIN_MARKET_CAP_USD or mc > self.config.MAX_MARKET_CAP_USD:
-                                            continue
+                                    pairs = pair_data.get("pairs") or []
+                                    p = pairs[0] if pairs else {}
+                                    name = p.get("baseToken", {}).get("name", "Pump Gem")
+                                    pair_addr = p.get("pairAddress") or token_mint
+                                    mc = float(p.get("marketCap") or p.get("fdv") or 0)
 
-                                        liq_usd = float(p.get("liquidity", {}).get("usd", 0) or 0)
-                                        liq_sol = liq_usd / 120.0 if liq_usd > 0 else 25.0
+                                    # If brand new pump token with no pair yet, default to ~$5k bonding curve MC
+                                    if mc == 0 and token_mint.endswith("pump"):
+                                        mc = 5000.0
 
-                                        event = PoolDetectionEvent(
-                                            pool_address=pair_addr,
-                                            token_mint=token_mint,
-                                            pool_type=PoolType.RAYDIUM_V4,
-                                            initial_sol_liquidity=liq_sol,
-                                            signature=pair_addr[:16],
-                                            detected_at=time.time(),
-                                        )
-                                        self.logger.log_info(
-                                            f"[bold cyan][SCANNER CANDIDATE][/] Found {p.get('baseToken', {}).get('name')} "
-                                            f"({token_mint[:8]}) | MC: ${mc:,.0f} | Website: {website_url}"
-                                        )
-                                        asyncio.create_task(self.handle_pool_detection(event))
+                                    if mc < self.config.MIN_MARKET_CAP_USD or mc > self.config.MAX_MARKET_CAP_USD:
+                                        continue
+
+                                    liq_usd = float(p.get("liquidity", {}).get("usd", 0) or 0)
+                                    liq_sol = liq_usd / 125.0 if liq_usd > 0 else 5.0
+
+                                    pool_type = PoolType.PUMP_FUN if token_mint.endswith("pump") else PoolType.RAYDIUM_V4
+                                    event = PoolDetectionEvent(
+                                        pool_address=pair_addr,
+                                        token_mint=token_mint,
+                                        base_mint=WSOL_MINT,
+                                        quote_mint="",
+                                        pool_type=pool_type,
+                                        initial_sol_liquidity=liq_sol,
+                                        signature=pair_addr[:16],
+                                        detected_at=time.time(),
+                                    )
+                                    self.logger.log_info(
+                                        f"[bold cyan][SCANNER CANDIDATE][/] Found {name} "
+                                        f"({token_mint[:8]}) | MC: ${mc:,.0f} | Dex: {p.get('dexId', 'pump')}"
+                                    )
+                                    asyncio.create_task(self.handle_pool_detection(event))
                         except Exception as e:
-                            self.logger.log_debug(f"Pair lookup skipped for {token_mint}: {e}")
+                            self.logger.log_debug(f"Token lookup skipped for {token_mint}: {e}")
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 self.logger.log_debug(f"DexScreener scanner loop notice: {e}")
-                await asyncio.sleep(3.0)
+                await asyncio.sleep(2.0)
 

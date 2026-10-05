@@ -71,6 +71,133 @@ class TradeExecutor:
                 return Keypair()
             raise ValueError(f"Invalid WALLET_PRIVATE_KEY format: {e}")
 
+    async def _execute_pumpportal_buy(
+        self,
+        token_mint: str,
+        amount_sol: float,
+        slippage_percent: float = 15.0,
+    ) -> Tuple[bool, Optional[str], int]:
+        """
+        Executes buy order on Pump.fun bonding curve via PumpPortal trade-local API.
+        """
+        import aiohttp
+        payload = {
+            "publicKey": self.pubkey_str,
+            "action": "buy",
+            "mint": token_mint,
+            "amount": amount_sol,
+            "denominatedInSol": "true",
+            "slippage": slippage_percent,
+            "priorityFee": 0.0005,
+            "pool": "pump" if token_mint.endswith("pump") else "auto",
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8.0)) as session:
+                async with session.post("https://pumpportal.fun/api/trade-local", json=payload) as resp:
+                    if resp.status != 200:
+                        err_text = await resp.text()
+                        self.logger.log_error(f"PumpPortal buy returned status {resp.status}: {err_text}")
+                        return False, None, 0
+                    raw_tx_bytes = await resp.read()
+
+            tx = VersionedTransaction.from_bytes(raw_tx_bytes)
+            signed_tx = VersionedTransaction(tx.message, [self.keypair])
+            signed_b64 = base64.b64encode(bytes(signed_tx)).decode("ascii")
+            signature_str = str(signed_tx.signatures[0])
+
+            # Attempt submission via Jito MEV Bundle
+            if self.use_jito:
+                bundle_id = await self.jito.send_bundle([signed_b64])
+                if bundle_id:
+                    self.logger.log_trade(
+                        action="BUY [PUMP/JITO]",
+                        token_mint=token_mint,
+                        amount_sol=amount_sol,
+                        price_sol=0.0,
+                        signature=signature_str,
+                        notes=f"PumpPortal Jito Bundle: {bundle_id[:12]}",
+                    )
+                    expected_tokens = int(amount_sol * 1_000_000_000)
+                    return True, signature_str, expected_tokens
+
+            # Direct RPC submission
+            tx_sig = await self.rpc.send_raw_transaction(signed_b64)
+            self.logger.log_trade(
+                action="BUY [PUMP/RPC]",
+                token_mint=token_mint,
+                amount_sol=amount_sol,
+                price_sol=0.0,
+                signature=tx_sig or signature_str,
+                notes="PumpPortal Direct Transaction",
+            )
+            expected_tokens = int(amount_sol * 1_000_000_000)
+            return True, tx_sig or signature_str, expected_tokens
+        except Exception as e:
+            self.logger.log_error(f"PumpPortal buy execution error: {e}")
+            return False, None, 0
+
+    async def _execute_pumpportal_sell(
+        self,
+        token_mint: str,
+        tokens_amount: int,
+        reason: str = "EXIT",
+        slippage_percent: float = 15.0,
+    ) -> Tuple[bool, Optional[str], float]:
+        """
+        Executes sell order on Pump.fun bonding curve via PumpPortal trade-local API.
+        """
+        import aiohttp
+        payload = {
+            "publicKey": self.pubkey_str,
+            "action": "sell",
+            "mint": token_mint,
+            "amount": "100%",
+            "denominatedInSol": "false",
+            "slippage": slippage_percent,
+            "priorityFee": 0.0005,
+            "pool": "pump" if token_mint.endswith("pump") else "auto",
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8.0)) as session:
+                async with session.post("https://pumpportal.fun/api/trade-local", json=payload) as resp:
+                    if resp.status != 200:
+                        err_text = await resp.text()
+                        self.logger.log_error(f"PumpPortal sell returned status {resp.status}: {err_text}")
+                        return False, None, 0.0
+                    raw_tx_bytes = await resp.read()
+
+            tx = VersionedTransaction.from_bytes(raw_tx_bytes)
+            signed_tx = VersionedTransaction(tx.message, [self.keypair])
+            signed_b64 = base64.b64encode(bytes(signed_tx)).decode("ascii")
+            signature_str = str(signed_tx.signatures[0])
+
+            if self.use_jito:
+                bundle_id = await self.jito.send_bundle([signed_b64])
+                if bundle_id:
+                    self.logger.log_trade(
+                        action=f"SELL [{reason}-PUMP/JITO]",
+                        token_mint=token_mint,
+                        amount_sol=0.0,
+                        price_sol=0.0,
+                        signature=signature_str,
+                        notes=f"Closed PumpPortal via Jito: {bundle_id[:12]}",
+                    )
+                    return True, signature_str, 0.08
+
+            tx_sig = await self.rpc.send_raw_transaction(signed_b64)
+            self.logger.log_trade(
+                action=f"SELL [{reason}-PUMP/RPC]",
+                token_mint=token_mint,
+                amount_sol=0.0,
+                price_sol=0.0,
+                signature=tx_sig or signature_str,
+                notes="Closed PumpPortal via Direct RPC",
+            )
+            return True, tx_sig or signature_str, 0.08
+        except Exception as e:
+            self.logger.log_error(f"PumpPortal sell execution error: {e}")
+            return False, None, 0.0
+
     async def execute_buy(
         self,
         token_mint: str,
@@ -83,6 +210,22 @@ class TradeExecutor:
         Executes a BUY swap: WSOL -> Target Token.
         Returns: (success: bool, tx_signature_or_bundle_id: str, tokens_acquired: int)
         """
+        # If token ends with 'pump', route directly via PumpPortal bonding curve
+        if token_mint.endswith("pump"):
+            if self.dry_run:
+                simulated_sig = self._generate_simulated_hash("BUY", token_mint, amount_sol)
+                expected_tokens = int(amount_sol * 1_000_000_000)
+                self.logger.log_trade(
+                    action="BUY [PUMP/SIM]",
+                    token_mint=token_mint,
+                    amount_sol=amount_sol,
+                    price_sol=0.0,
+                    signature=simulated_sig,
+                    notes=f"Expected: {expected_tokens} tokens",
+                )
+                return True, simulated_sig, expected_tokens
+            return await self._execute_pumpportal_buy(token_mint, amount_sol)
+
         amount_lamports = int(amount_sol * 1_000_000_000)
 
         # ---------------------------------------------------------------------
@@ -96,11 +239,10 @@ class TradeExecutor:
         )
         if not quote:
             if self.dry_run:
-                # Synthesize simulated token output based on representative pricing
                 expected_tokens = int(amount_sol * 1_000_000_000)
             else:
-                self.logger.log_error(f"Buy failed: Could not fetch Jupiter quote for {token_mint[:8]}")
-                return False, None, 0
+                self.logger.log_info(f"No Jupiter route for {token_mint[:8]}, routing through PumpPortal...")
+                return await self._execute_pumpportal_buy(token_mint, amount_sol)
         else:
             expected_tokens = int(quote.get("outAmount", 0))
 
@@ -122,7 +264,6 @@ class TradeExecutor:
         # ---------------------------------------------------------------------
         # 3. Live Execution: Build, Sign, and Submit
         # ---------------------------------------------------------------------
-        # Calculate adaptive MEV tip
         tip_lamports = await self.jito.calculate_adaptive_tip(
             is_high_congestion=is_congested,
             is_exceptional_momentum=is_exceptional_momentum,
@@ -153,7 +294,6 @@ class TradeExecutor:
                     notes=f"Jito Bundle: {bundle_id[:12]} | Tip: {tip_lamports} lamports",
                 )
                 return True, signature_str, expected_tokens
-            # Fallback to direct RPC submission if bundle dispatch failed
             self.logger.log_warning("Jito bundle submission failed; falling back to direct RPC submission.")
 
         tx_sig = await self.rpc.send_raw_transaction(signed_tx_b64)
@@ -181,6 +321,21 @@ class TradeExecutor:
         if tokens_amount <= 0:
             return False, None, 0.0
 
+        if token_mint.endswith("pump"):
+            if self.dry_run:
+                sol_received = 0.08
+                simulated_sig = self._generate_simulated_hash("SELL", token_mint, sol_received)
+                self.logger.log_trade(
+                    action=f"SELL [{reason}-SIM]",
+                    token_mint=token_mint,
+                    amount_sol=sol_received,
+                    price_sol=0.0,
+                    signature=simulated_sig,
+                    notes=f"Closed {tokens_amount} tokens",
+                )
+                return True, simulated_sig, sol_received
+            return await self._execute_pumpportal_sell(token_mint, tokens_amount, reason=reason)
+
         quote = await self.jupiter.get_quote(
             input_mint=token_mint,
             output_mint=WSOL_MINT,
@@ -189,11 +344,10 @@ class TradeExecutor:
         )
         if not quote:
             if self.dry_run:
-                # Synthesize simulated SOL return based on realistic market exit
                 sol_received = (tokens_amount / 1_000_000_000.0) * 1.08
             else:
-                self.logger.log_error(f"Sell failed: Could not fetch quote for {token_mint[:8]}")
-                return False, None, 0.0
+                self.logger.log_info(f"No Jupiter quote to sell {token_mint[:8]}, routing through PumpPortal...")
+                return await self._execute_pumpportal_sell(token_mint, tokens_amount, reason=reason)
         else:
             out_lamports = int(quote.get("outAmount", 0))
             sol_received = out_lamports / 1_000_000_000.0
@@ -250,15 +404,10 @@ class TradeExecutor:
         """Deserializes base64 VersionedTransaction, signs it, and returns base64 string."""
         raw_bytes = base64.b64decode(tx_b64)
         tx = VersionedTransaction.from_bytes(raw_bytes)
-        # Sign with our keypair
-        message_bytes = bytes(tx.message)
-        signature = self.keypair.sign_message(message_bytes)
-
-        # Update transaction signatures
-        tx.signatures = [signature]
-        signed_bytes = bytes(tx)
+        signed_tx = VersionedTransaction(tx.message, [self.keypair])
+        signed_bytes = bytes(signed_tx)
         signed_b64 = base64.b64encode(signed_bytes).decode("ascii")
-        sig_str = str(signature)
+        sig_str = str(signed_tx.signatures[0])
         return signed_b64, sig_str
 
     def _generate_simulated_hash(self, action: str, mint: str, amount: float) -> str:

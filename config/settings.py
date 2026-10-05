@@ -127,8 +127,8 @@ class BotConfig(BaseSettings):
         description="Reject Token-2022 tokens configured with non-zero transfer fee extensions.",
     )
     MIN_LP_SOL_RESERVES: float = Field(
-        default=15.0,
-        description="Minimum pool SOL reserves required before evaluating entry eligibility.",
+        default=2.0,
+        description="Minimum pool SOL reserves required before evaluating entry eligibility (2.0 SOL allows $3k-$15k MC gems).",
     )
     MIN_LP_TO_MC_RATIO: float = Field(
         default=0.08,
