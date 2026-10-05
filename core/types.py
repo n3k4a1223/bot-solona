@@ -28,6 +28,7 @@ class TradeAction(str, Enum):
     BUY = "BUY"
     HOLD = "HOLD"
     SCALE_OUT = "SCALE_OUT"
+    TAKE_PROFIT = "TAKE_PROFIT"
     STOP_LOSS = "STOP_LOSS"
     STAGNATION_CUT = "STAGNATION_CUT"
     DRAWDOWN_HALT = "DRAWDOWN_HALT"

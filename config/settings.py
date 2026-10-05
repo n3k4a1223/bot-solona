@@ -154,6 +154,18 @@ class BotConfig(BaseSettings):
     # -------------------------------------------------------------------------
     # 5. Adaptive Entry & Momentum Systems
     # -------------------------------------------------------------------------
+    MAX_ACTIVE_POSITIONS: int = Field(
+        default=1,
+        description="Maximum concurrent open positions. Strictly 1 for sequential single-token compounding.",
+    )
+    SNIPER_DELAY_SECONDS: float = Field(
+        default=5.0,
+        description="Sniper execution delay in seconds after pool launch (e.g., exactly 5s to bypass block 0/1 MEV traps).",
+    )
+    TARGET_TAKE_PROFIT_PCT: float = Field(
+        default=100.0,
+        description="Target profit percentage to trigger 100% full exit (e.g. 100% = 2x gain, $20 -> $40).",
+    )
     MIN_POSITION_PCT: float = Field(
         default=0.03,
         description="Lower bound of dynamic portfolio capital allocation (3% of liquid balance).",

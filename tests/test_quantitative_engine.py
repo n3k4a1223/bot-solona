@@ -293,6 +293,36 @@ def test_exit_engine_trailing_stop_and_scale_out():
     assert frac_stop == 1.0, "Stop loss must exit 100% of remaining position"
 
 
+def test_exit_engine_100_percent_take_profit_doubler():
+    """Verify master take-profit triggers 100% exit when position doubles (+100% PnL)."""
+    exit_engine = DynamicExitEngine(target_take_profit_pct=100.0)
+
+    entry_price = 0.0010
+    pos = OpenPosition(
+        token_mint="DoublerToken",
+        pool_address="PoolAddr",
+        pool_type=PoolType.RAYDIUM_V4,
+        entry_price_sol=entry_price,
+        current_price_sol=entry_price,
+        peak_price_sol=entry_price,
+        tokens_amount=100_000,
+        sol_invested=20.0,  # e.g., $20 trade
+        entry_timestamp=time.time(),
+        trailing_stop_price=entry_price * 0.90,
+    )
+    vol = VolatilityMetrics("DoublerToken", 0.03, entry_price * 0.04, entry_price, "NORMAL", 1.0)
+    mom = MomentumMetrics("DoublerToken", 180, 20, 2, 22, 25.0, 2.0, 23.0, 95.0, True)
+
+    # 1. Price doubles: from 0.0010 -> 0.0020 (+100% gain, $20 -> $40)
+    double_price = entry_price * 2.0
+    action, reason, fraction = exit_engine.evaluate_position_exit(pos, double_price, vol, mom)
+
+    assert action == TradeAction.TAKE_PROFIT, f"Expected TAKE_PROFIT on 2x price, got {action}"
+    assert fraction == 1.0, "Must exit 100% of position to rotate capital"
+    assert "TARGET DOUBLED" in reason
+
+
+
 # =============================================================================
 # 7. Safety Circuit Breaker Tests
 # =============================================================================

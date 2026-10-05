@@ -29,11 +29,13 @@ class DynamicExitEngine:
         consecutive_exhaustion_intervals: int = 2,
         base_stagnation_seconds: int = 120,
         min_volume_multiplier_baseline: float = 2.0,
+        target_take_profit_pct: float = 100.0,  # 100% Take-Profit target (2x double capital)
     ):
         self.atr_multiplier = atr_multiplier
         self.consecutive_exhaustion_intervals = consecutive_exhaustion_intervals
         self.base_stagnation_seconds = base_stagnation_seconds
         self.min_volume_multiplier_baseline = min_volume_multiplier_baseline
+        self.target_take_profit_pct = target_take_profit_pct
         self.logger = get_logger()
 
     def evaluate_position_exit(
@@ -45,7 +47,8 @@ class DynamicExitEngine:
     ) -> Tuple[TradeAction, str, float]:
         """
         Evaluates position state against dynamic exit algorithms:
-        1. Dynamic ATR Trailing Stop
+        0. Master Take-Profit Target (+100% / 2x Double Capital)
+        1. Dynamic ATR Trailing Stop (with +25% and +50% breakeven ratchets)
         2. Order Flow Volume Delta Exhaustion Scale-Out
         3. Adaptive Stagnation Capital Reclaim
         Returns: (TradeAction, reason_str, fraction_to_sell)
@@ -57,15 +60,36 @@ class DynamicExitEngine:
         if current_price_sol > position.peak_price_sol:
             position.peak_price_sol = current_price_sol
 
+        pnl_pct = position.unrealized_pnl_pct
+
+        # ---------------------------------------------------------------------
+        # 0. Master Take-Profit Target: +100% Gain (2x Capital Doubler)
+        # Sells 100% immediately to rotate compounded capital into next token!
+        # ---------------------------------------------------------------------
+        if pnl_pct >= self.target_take_profit_pct or current_price_sol >= (position.entry_price_sol * (1.0 + self.target_take_profit_pct / 100.0)):
+            reason = (
+                f"🎯 TARGET DOUBLED (+{pnl_pct:.1f}% >= +{self.target_take_profit_pct:.1f}%)! "
+                f"Capital doubled from {position.sol_invested:.4f} SOL. "
+                f"Selling 100% of tokens to rotate compounded SOL into the next token!"
+            )
+            return TradeAction.TAKE_PROFIT, reason, 1.0
+
         # ---------------------------------------------------------------------
         # 1. Update Dynamic ATR / Volatility Trailing Stop Loss Band
-        # Stop Distance = k * max(ATR, Peak * std_1m)
         # ---------------------------------------------------------------------
         vol_distance = max(
             volatility.atr_sol,
             position.peak_price_sol * max(volatility.std_1m_returns, 0.02),
         )
         calculated_stop = position.peak_price_sol - (self.atr_multiplier * vol_distance)
+
+        # Profit Protection Ratchets:
+        # If up > +25%, guarantee breakeven (stop cannot fall below entry price)
+        if pnl_pct >= 25.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol)
+        # If up > +50%, guarantee at least +25% profit lock
+        if pnl_pct >= 50.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.25)
 
         # Trailing stop can only ratchet UP, never down
         if calculated_stop > position.trailing_stop_price:

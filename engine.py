@@ -107,6 +107,7 @@ class TradingEngine:
             consecutive_exhaustion_intervals=self.config.CONSECUTIVE_EXHAUSTION_INTERVALS,
             base_stagnation_seconds=self.config.STAGNATION_TIMEOUT_SECONDS_BASE,
             min_volume_multiplier_baseline=self.config.MIN_VOLUME_MULTIPLIER_BASELINE,
+            target_take_profit_pct=self.config.TARGET_TAKE_PROFIT_PCT,
         )
 
         # WebSocket Listener
@@ -179,8 +180,12 @@ class TradingEngine:
     async def handle_pool_detection(self, event: PoolDetectionEvent) -> None:
         """
         Processes newly detected pools, executing multi-tier security audits
-        and registering valid tokens for momentum tracking.
+        and triggering 5th-second sniper entry for approved setups.
         """
+        # Strict Sequential Single-Position Mode: Only 1 active token at a time
+        if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
+            return
+
         # For live trading, require a valid Base58 token mint address
         if not self.config.DRY_RUN:
             if not event.token_mint:
@@ -196,12 +201,27 @@ class TradingEngine:
             token_mint = event.token_mint or f"MockToken{event.signature[:6]}"
             pool_address = event.pool_address or f"Pool{event.signature[:8]}"
 
-        initial_sol = event.initial_sol_liquidity if event.initial_sol_liquidity > 0 else 35.0
-        initial_tokens = 1_000_000_000.0 * 0.8  # 80% in pool
-
         # Skip already monitored or active tokens
         if token_mint in self.active_positions or token_mint in self.monitored_pools:
             return
+
+        # ---------------------------------------------------------------------
+        # 5th-Second Sniper Timing: Wait until pool is exactly 5.0 seconds old
+        # Bypasses block 0/1 MEV sandwich bundles and anti-bot traps
+        # ---------------------------------------------------------------------
+        now = time.time()
+        detected_at = getattr(event, "detected_at", now)
+        elapsed = now - detected_at
+        remaining_delay = max(0.0, self.config.SNIPER_DELAY_SECONDS - elapsed)
+        if remaining_delay > 0:
+            await asyncio.sleep(remaining_delay)
+
+        # Re-check single-position guard after delay
+        if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
+            return
+
+        initial_sol = event.initial_sol_liquidity if event.initial_sol_liquidity > 0 else 35.0
+        initial_tokens = 1_000_000_000.0 * 0.8  # 80% in pool
 
         # ---------------------------------------------------------------------
         # 1. Multi-Tier Anti-Scam & Liquidity Audit
@@ -234,11 +254,18 @@ class TradingEngine:
         }
         self.logger.monitored_tokens = self.monitored_pools
 
+        # Trigger 5th-second sniper evaluation immediately
+        await self.handle_trade_signal_evaluation(token_mint)
+
     async def handle_trade_signal_evaluation(self, token_mint: str) -> None:
         """
         Evaluates dynamic entry criteria: momentum velocity percentile,
         volatility regime, Kelly position sizing, and circuit breakers.
         """
+        # Strict single-position guard
+        if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
+            return
+
         pool_data = self.monitored_pools.get(token_mint)
         if not pool_data or token_mint in self.active_positions:
             return
@@ -354,10 +381,19 @@ class TradingEngine:
                             if pos.tokens_amount <= 0 or fraction >= 0.99:
                                 pos.is_active = False
                                 del self.active_positions[token_mint]
-                                self.logger.log_success(
-                                    f"Position Closed for [bold cyan]{token_mint[:8]}[/]! "
-                                    f"Total Realized PnL: {pos.realized_pnl_sol:+.3f} SOL. Reason: {reason}"
-                                )
+                                if action == TradeAction.TAKE_PROFIT:
+                                    self.logger.log_success(
+                                        f"🚀 [bold green]100% PROFIT TARGET REALIZED (2x DOUBLED)![/] "
+                                        f"Token: [bold cyan]{token_mint[:8]}[/] | Returned: [bold white]{sol_back:.4f} SOL[/] "
+                                        f"(Net Profit: [bold green]+{pos.realized_pnl_sol:+.4f} SOL[/]). "
+                                        f"Compounded capital added to wallet balance ({self.wallet_liquid_sol:.4f} SOL). "
+                                        f"Now scanning for the NEXT token to snipe at the 5th second!"
+                                    )
+                                else:
+                                    self.logger.log_success(
+                                        f"Position Closed for [bold cyan]{token_mint[:8]}[/]! "
+                                        f"Total Realized PnL: {pos.realized_pnl_sol:+.3f} SOL. Reason: {reason}"
+                                    )
 
                 # Update portfolio equity & check drawdown governor
                 total_unrealized_sol = sum(p.unrealized_pnl_sol for p in self.active_positions.values())

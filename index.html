@@ -262,62 +262,65 @@
         <div class="space-y-2 text-xs">
           <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex justify-between items-center">
             <div>
-              <div class="text-slate-200 font-medium">Sizing Engine</div>
-              <div class="text-[10px] text-slate-400">Micro-Scale &harr; Fractional Kelly</div>
+              <div class="text-slate-200 font-medium">Sniper Timing</div>
+              <div class="text-[10px] text-slate-400">5th-Second Entry &bull; Bypasses MEV traps</div>
             </div>
             <div class="text-right">
-              <span class="font-mono font-bold text-emerald-400">Adaptive</span>
-              <div class="text-[10px] text-slate-400">Threshold: 0.15 SOL</div>
+              <span class="font-mono font-bold text-emerald-400">Exact 5.0s</span>
+              <div class="text-[10px] text-slate-400">Block 0/1 Avoidance</div>
             </div>
           </div>
 
           <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex justify-between items-center">
             <div>
-              <div class="text-slate-200 font-medium">Gas &amp; Rent Reserve</div>
-              <div class="text-[10px] text-slate-400">Locked fee buffer</div>
+              <div class="text-slate-200 font-medium">Target Take-Profit</div>
+              <div class="text-[10px] text-slate-400">100% Profit Doubler &bull; Full Exit</div>
             </div>
             <div class="text-right">
-              <span class="font-mono font-bold text-cyan-400">0.0050 SOL</span>
-              <div class="text-[10px] text-slate-400">Prevents starvation</div>
+              <span class="font-mono font-bold text-amber-400">+100.0% (2x)</span>
+              <div class="text-[10px] text-slate-400">$20 &rarr; $40 Goal</div>
             </div>
           </div>
 
           <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex justify-between items-center">
             <div>
-              <div class="text-slate-200 font-medium">Retail Momentum Trigger</div>
-              <div class="text-[10px] text-slate-400">Buyer inflow velocity (3 min)</div>
+              <div class="text-slate-200 font-medium">Position Queue</div>
+              <div class="text-[10px] text-slate-400">Strict Sequential &bull; 1 Token at a Time</div>
             </div>
             <div class="text-right">
-              <span class="font-mono font-bold text-purple-400">&ge; 90th %ile</span>
-              <div class="text-[10px] text-slate-400">&ge; 12 unique buyers</div>
+              <span class="font-mono font-bold text-purple-400">1 Active</span>
+              <div class="text-[10px] text-slate-400">Auto-Rotates Next</div>
             </div>
           </div>
 
           <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex justify-between items-center">
             <div>
-              <div class="text-slate-200 font-medium">Dynamic Trailing Stop</div>
-              <div class="text-[10px] text-slate-400">ATR multiplier &amp; scale-out</div>
+              <div class="text-slate-200 font-medium">Capital Protection</div>
+              <div class="text-[10px] text-slate-400">ATR Trailing Stop &bull; Breakeven Lock</div>
             </div>
             <div class="text-right">
-              <span class="font-mono font-bold text-amber-400">2.0x ATR</span>
-              <div class="text-[10px] text-slate-400">50% lock on exhaust</div>
+              <span class="font-mono font-bold text-cyan-400">2.0x ATR</span>
+              <div class="text-[10px] text-slate-400">0.005 SOL Reserve</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Live Calculation Card for Small Capital ($5) -->
+      <!-- Live Calculation Card for $20 Doubler Simulation -->
       <div class="bg-slate-950 rounded-xl border border-slate-800 p-3 mt-3.5">
         <div class="text-[11px] text-slate-400 mb-1 flex items-center justify-between">
-          <span>Target Size for ~$5 (0.03 SOL):</span>
-          <span class="text-emerald-400 font-mono text-[10px]">CALCULATED</span>
+          <span>Sequential Trade Goal (~$20 Trade):</span>
+          <span class="text-emerald-400 font-mono text-[10px]">TARGET: 2X</span>
         </div>
         <div class="flex items-baseline justify-between">
-          <span class="text-lg sm:text-xl font-bold font-mono text-emerald-400">0.0150 SOL</span>
-          <span class="text-xs font-mono font-semibold text-slate-300">~60% of Tradable</span>
+          <span class="text-lg sm:text-xl font-bold font-mono text-emerald-400">$20.00 &rarr; $40.00</span>
+          <span class="text-xs font-mono font-semibold text-slate-300">+100% Net</span>
         </div>
         <div class="mt-1.5 pt-1.5 border-t border-slate-800 text-[10px] font-mono text-slate-400 flex justify-between">
-          <span>Fee Buffer: <strong class="text-cyan-400">0.005 SOL</strong></span>
+          <span>Fee Reserve: <strong class="text-cyan-400">0.005 SOL</strong></span>
+          <span>Next Action: <strong class="text-purple-400">Rotate Next Token</strong></span>
+        </div>
+      </div>
           <span>Order Cap: <strong class="text-slate-200">1.5% Pool</strong></span>
         </div>
       </div>
