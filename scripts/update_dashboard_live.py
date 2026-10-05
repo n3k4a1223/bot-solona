@@ -2,8 +2,8 @@
 Live Web Engine Injector for Solana Quantitative Dashboard
 ===========================================================
 Injects real-time Solana blockchain RPC queries, live USD prices,
-on-chain transaction listeners, and 1-token 100% doubler sniper telemetry
-into index.html and dashboard.html.
+on-chain transaction listeners, $5 fixed trade sizing, $3k-$15k market cap window,
+website match verification, and anti-clone telemetry into index.html and dashboard.html.
 """
 
 import re
@@ -123,7 +123,7 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
 
             const subEl = document.getElementById('card-balance-sub');
             if (subEl) {
-              subEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse inline-block"></span><span class="text-emerald-400 font-semibold">Live Mainnet (${currentSolBalance.toFixed(4)} SOL Armed)</span>`;
+              subEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse inline-block"></span><span class="text-emerald-400 font-semibold">Live Mainnet (${currentSolBalance.toFixed(4)} SOL Armed &bull; $5 Entry Size)</span>`;
             }
           }
         }
@@ -191,43 +191,43 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
     }
 
     // 5. Real-Time Market Activity Scanner Simulator (Matches active Python engine)
-    const SAMPLE_MINTS = [
-      'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
-      '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
-      '9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump',
-      'HhJpNmRkWpqNfqvKMW8KqzZ914qf12Jkm9478s5pump',
-      '6D7Y2fdAM5wNXkC8j13euuvrf1AYou6guZUW21pump'
+    const SAMPLE_TOKENS = [
+      { name: 'KurdCat', symbol: 'KCAT', domain: 'kurdcat.io', mc: 5800 },
+      { name: 'MoonWolf', symbol: 'MWOLF', domain: 'moonwolf.xyz', mc: 8200 },
+      { name: 'SolarPepe', symbol: 'SPEPE', domain: 'solarpepe.com', mc: 11400 },
+      { name: 'CyberHawk', symbol: 'CHAWK', domain: 'cyberhawk.fun', mc: 6900 }
     ];
 
     let poolCycle = 0;
     function runSimulatedTelemetryPulse() {
       poolCycle++;
-      const mint = SAMPLE_MINTS[poolCycle % SAMPLE_MINTS.length];
-      const shortMint = mint.slice(0, 6) + '...' + mint.slice(-4);
-      const stage = poolCycle % 4;
+      const tok = SAMPLE_TOKENS[poolCycle % SAMPLE_TOKENS.length];
+      const stage = poolCycle % 5;
 
       if (stage === 1) {
-        appendLog(`[DEX] <span class="text-purple-400">POOL DETECTED:</span> Raydium / Pump.fun <span class="text-cyan-300 font-bold">${shortMint}</span> | LP: ${(18 + Math.random() * 20).toFixed(1)} SOL`);
+        appendLog(`[DEX] <span class="text-purple-400">POOL DETECTED:</span> Raydium / Pump.fun <span class="text-cyan-300 font-bold">${tok.name} (${tok.symbol})</span> | MC: <strong class="text-emerald-400">$${tok.mc.toLocaleString()}</strong> (Target Window: $3k-$15k ✓)`);
       } else if (stage === 2) {
-        appendLog(`[SNP] <span class="text-amber-400 font-bold">5s SNIPER DELAY:</span> Waiting until 5.00s mark to bypass block-0 sandwich traps & anti-bot traps...`);
+        appendLog(`[WEB] <span class="text-emerald-400">WEBSITE AUDIT:</span> https://${tok.domain} ✓ Domain matches token name &bull; Dedicated website verified.`);
       } else if (stage === 3) {
-        appendLog(`[AUD] <span class="text-emerald-400">PASS:</span> Freeze Revoked ✓ | Mint Revoked ✓ | Shannon Entropy: ${(2.4 + Math.random() * 0.5).toFixed(2)} &ge; 2.20`);
+        appendLog(`[SHD] <span class="text-emerald-400">ANTI-CLONE SHIELD:</span> No major crypto / tech stock impersonation detected (BTC, ETH, SOL, TSLA clean ✓)`);
+      } else if (stage === 4) {
+        appendLog(`[SNP] <span class="text-amber-400 font-bold">5s SNIPER DELAY:</span> Waiting for 5.00s mark to bypass block-0 sandwich traps & anti-bot traps...`);
       } else if (stage === 0) {
-        appendLog(`[1TK] <span class="text-cyan-400 font-bold">SEQUENTIAL GOVERNOR:</span> Max Positions: 1 | Take-Profit Target: <span class="text-emerald-400 font-bold">+100.0% Doubler (Sell 100%)</span>`);
+        appendLog(`[SIZ] <span class="text-cyan-400 font-bold">ENTRY READY ($5.00):</span> Sizing 0.0417 SOL (~$5.00 USD) | 1-Token Mode (0/1) | Take-Profit: <span class="text-emerald-400 font-bold">+100.0% Doubler ($5 -> $10 exit)</span>`);
       }
     }
 
-    // 6. Interactive Trailing Stop & 100% Doubler Chart
+    // 6. Interactive Trailing Stop & 100% Doubler Chart ($5 -> $10)
     const canvas = document.getElementById('trailing-canvas');
     const ctx = canvas ? canvas.getContext('2d') : null;
 
     let points = [
-      { price: 1.00, stop: 0.90, event: 'ENTRY ($20)' },
+      { price: 1.00, stop: 0.90, event: 'ENTRY ($5)' },
       { price: 1.15, stop: 0.92, event: '' },
-      { price: 1.25, stop: 1.00, event: 'BREAKEVEN STOP' },
-      { price: 1.50, stop: 1.25, event: 'LOCK +25% PROFIT' },
+      { price: 1.25, stop: 1.00, event: 'BREAKEVEN ($5)' },
+      { price: 1.50, stop: 1.25, event: 'LOCK +25% ($6.25)' },
       { price: 1.80, stop: 1.50, event: '' },
-      { price: 2.00, stop: 1.80, event: '100% DOUBLER EXIT ($40)' }
+      { price: 2.00, stop: 1.80, event: '100% DOUBLER EXIT ($10)' }
     ];
 
     function drawChart() {
@@ -269,7 +269,7 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
 
       ctx.fillStyle = '#eab308';
       ctx.font = 'bold 10px monospace';
-      ctx.fillText('+100% DOUBLER TARGET (2.0x)', paddingX + 4, getY(2.00) - 6);
+      ctx.fillText('+100% DOUBLER TARGET ($5 -> $10)', paddingX + 4, getY(2.00) - 6);
 
       // Trailing Stop Line (Red Dash)
       ctx.beginPath();
@@ -358,18 +358,18 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
         const last = points[points.length - 1];
         const newPrice = Math.min(2.00, last.price + 0.25);
         const newStop = Math.max(last.stop, newPrice >= 1.25 ? 1.00 : 0.90);
-        points.push({ price: newPrice, stop: newStop, event: newPrice >= 1.25 ? 'BREAKEVEN' : '' });
+        points.push({ price: newPrice, stop: newStop, event: newPrice >= 1.25 ? 'BREAKEVEN ($5)' : '' });
         drawChart();
       });
     }
 
     const btnExhaust = document.getElementById('btn-chart-exhaust');
     if (btnExhaust) {
-      btnExhaust.innerText = '+100% Doubler Exit';
+      btnExhaust.innerText = '+100% Doubler Exit ($10)';
       btnExhaust.addEventListener('click', () => {
-        points.push({ price: 2.00, stop: 1.80, event: '100% DOUBLER EXIT ($40)' });
+        points.push({ price: 2.00, stop: 1.80, event: '100% DOUBLER EXIT ($10)' });
         drawChart();
-        appendLog(`[EXE] <span class="text-emerald-400 font-bold">100% DOUBLER TARGET REACHED:</span> Sold 100% position. $20 -> $40 (+100.0%). Capital recycled into next token.`);
+        appendLog(`[EXE] <span class="text-emerald-400 font-bold">100% DOUBLER TARGET REACHED:</span> Sold 100% position ($5 -> $10 USD). Capital recycled into next token.`);
       });
     }
 
@@ -377,12 +377,12 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
     if (btnReset) {
       btnReset.addEventListener('click', () => {
         points = [
-          { price: 1.00, stop: 0.90, event: 'ENTRY ($20)' },
+          { price: 1.00, stop: 0.90, event: 'ENTRY ($5)' },
           { price: 1.15, stop: 0.92, event: '' },
-          { price: 1.25, stop: 1.00, event: 'BREAKEVEN STOP' },
-          { price: 1.50, stop: 1.25, event: 'LOCK +25% PROFIT' },
+          { price: 1.25, stop: 1.00, event: 'BREAKEVEN ($5)' },
+          { price: 1.50, stop: 1.25, event: 'LOCK +25% ($6.25)' },
           { price: 1.80, stop: 1.50, event: '' },
-          { price: 2.00, stop: 1.80, event: '100% DOUBLER EXIT ($40)' }
+          { price: 2.00, stop: 1.80, event: '100% DOUBLER EXIT ($10)' }
         ];
         drawChart();
       });
@@ -393,7 +393,7 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
     if (btnClear) {
       btnClear.addEventListener('click', () => {
         const c = document.getElementById('log-container');
-        if (c) c.innerHTML = '<div class="text-slate-500">[CLEAR] Log stream refreshed. Listening for 5s sniper opportunities...</div>';
+        if (c) c.innerHTML = '<div class="text-slate-500">[CLEAR] Log stream refreshed. Listening for $5 sniper opportunities ($3k-$15k MC)...</div>';
       });
     }
 
@@ -403,7 +403,7 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
 
     setInterval(updateSolPrice, 20000);
     setInterval(updateSolanaBalance, 4000);
-    setInterval(runSimulatedTelemetryPulse, 3500);
+    setInterval(runSimulatedTelemetryPulse, 3200);
   </script>
 '''
 
@@ -414,7 +414,7 @@ def update_file(filepath):
     # 1. Update Strategy Mode in header
     content = re.sub(
         r'<div class="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate mt-0\.5" id="stat-mode">[\s\S]*?</div>',
-        '<div class="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate mt-0.5" id="stat-mode">1-Token 5s Sniper</div>',
+        '<div class="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate mt-0.5" id="stat-mode">1-Token $5 Sniper</div>',
         content
     )
 
@@ -425,53 +425,62 @@ def update_file(filepath):
       </div>
       <div class="text-[11px] text-emerald-400/90 mt-2 flex items-center gap-1 leading-tight" id="card-balance-sub">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse inline-block"></span>
-        <span class="text-emerald-400 font-semibold">Live Mainnet (0.4229 SOL Armed)</span>
+        <span class="text-emerald-400 font-semibold">Live Mainnet ($5 Sized &bull; 0.4229 SOL)</span>
       </div>'''
 
     content = re.sub(
-        r'<div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1\.5" id="card-balance">[\s\S]*?</div>\s*<div class="text-\[11px\][\s\S]*?</div>',
+        r'<div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1\.5 flex flex-wrap items-baseline gap-2" id="card-balance">[\s\S]*?</div>\s*<div class="text-\[11px\][\s\S]*?</div>',
         balance_replacement,
         content,
         count=1
     )
 
     # 3. Update Regime Card HTML
-    regime_replacement = '''<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">1-TOKEN 5s SNIPER</div>
+    regime_replacement = '''<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">1-TOKEN $5 SNIPER</div>
       <div class="text-[11px] text-slate-400 mt-2 leading-tight">
-        100% Doubler Target &bull; 5s Anti-Trap Delay
+        100% Doubler Target &bull; MC: $3k - $15k
       </div>'''
 
     content = re.sub(
-        r'<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1\.5 truncate" id="card-regime">[\s\S]*?</div>\s*<div class="text-\[11px\][\s\S]*?</div>',
+        r'<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1\.5 truncate" id="card-regime">[\s\S]*?</div>\s*<div class="text-\[11px\] text-slate-400 mt-2 leading-tight">[\s\S]*?</div>',
         regime_replacement,
         content,
         count=1
     )
 
-    # 4. Update Peak Capital
+    # 4. Update Audited Pools Card
+    audited_replacement = '''<div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+        <span>AUDITED GEMS</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 font-mono">MC $3k-$15k</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-monitored">1 ACTIVE</div>
+      <div class="text-[11px] text-emerald-400 mt-2 flex items-center gap-1 leading-tight">
+        <span>✓ Website Match &bull; Anti-Clone Shield</span>
+      </div>'''
+
     content = re.sub(
-        r'Peak: <span class="font-mono font-bold text-white" id="card-peak">[\s\S]*?</span>',
-        'Peak: <span class="font-mono font-bold text-white" id="card-peak">0.4229 SOL</span>',
+        r'<div class="flex items-center justify-between text-\[11px\] text-slate-400 font-medium">\s*<span>AUDITED POOLS</span>[\s\S]*?7/7 Hard Stops Cleared\s*</span>\s*</div>',
+        audited_replacement,
         content,
         count=1
     )
 
     # 5. Update Mobile Sticky bar
     content = re.sub(
-        r'LIVE &bull; <span class="text-cyan-400 font-bold">[\s\S]*?</span>',
+        r'LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">[\s\S]*?</span>',
         'LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">0.4229 SOL ($50.75)</span>',
         content,
         count=1
     )
 
     # 6. Replace JavaScript Engine at the bottom
-    script_regex = re.compile(r'<!-- Interactive JavaScript Engine -->[\s\S]*?</body>', re.DOTALL)
+    script_regex = re.compile(r'<!-- Live Interactive Solana Quantitative Engine -->[\s\S]*?</body>', re.DOTALL)
     new_script_block = f'{JS_CODE}\n</body>'
     content = script_regex.sub(new_script_block, content)
 
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
-    print(f"Successfully injected live engine into {filepath}")
+    print(f"Successfully injected updated $5 strategy into {filepath}")
 
 if __name__ == '__main__':
     update_file('index.html')

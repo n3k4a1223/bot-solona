@@ -267,5 +267,5 @@ python okx_main.py --live
 ```bash
 python server.py
 ```
-سەردانی **`http://localhost:8080/okx`** بکە یان لەسەرەوەی لاپەڕەی سەرەکی کلیک لە دوگمەی **OKX xchange** بکە!
+سەردانی **`http://lo80/calhost:80okx`** بکە یان لەسەرەوەی لاپەڕەی سەرەکی کلیک لە دوگمەی **OKX xchange** بکە!
 

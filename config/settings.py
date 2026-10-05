@@ -166,6 +166,26 @@ class BotConfig(BaseSettings):
         default=100.0,
         description="Target profit percentage to trigger 100% full exit (e.g. 100% = 2x gain, $20 -> $40).",
     )
+    TARGET_BUY_USD: float = Field(
+        default=5.0,
+        description="Fixed entry trade size in USD ($5.00 per trade).",
+    )
+    MIN_MARKET_CAP_USD: float = Field(
+        default=3000.0,
+        description="Minimum market cap in USD to qualify for sniper buy ($3,000).",
+    )
+    MAX_MARKET_CAP_USD: float = Field(
+        default=15000.0,
+        description="Maximum market cap in USD to qualify for sniper buy ($15,000).",
+    )
+    REQUIRE_MATCHING_WEBSITE: bool = Field(
+        default=True,
+        description="Mandate token has a live website whose domain name matches the token name.",
+    )
+    REJECT_MAJOR_COIN_CLONES: bool = Field(
+        default=True,
+        description="Reject tokens cloning or impersonating major cryptocurrencies (BTC, ETH, SOL) or major tech stocks.",
+    )
     MIN_POSITION_PCT: float = Field(
         default=0.03,
         description="Lower bound of dynamic portfolio capital allocation (3% of liquid balance).",

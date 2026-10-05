@@ -79,6 +79,8 @@ class TradingEngine:
             max_single_percent=self.config.MAX_SINGLE_HOLDER_PERCENT,
             min_shannon_entropy=self.config.MIN_HOLDER_SHANNON_ENTROPY,
             max_roundtrip_loss_pct=self.config.MAX_SIMULATION_ROUNDTRIP_LOSS_PCT,
+            min_market_cap_usd=self.config.MIN_MARKET_CAP_USD,
+            max_market_cap_usd=self.config.MAX_MARKET_CAP_USD,
         )
         self.momentum_tracker = MomentumTracker(
             window_seconds=self.config.INFLOW_WINDOW_SECONDS,
@@ -93,6 +95,7 @@ class TradingEngine:
             max_position_pct=self.config.MAX_POSITION_PCT,
             kelly_fraction=self.config.KELLY_FRACTION,
             buy_velocity_weight=self.config.BUY_VELOCITY_WEIGHT,
+            target_buy_usd=self.config.TARGET_BUY_USD,
         )
 
         # Risk Management

@@ -40,6 +40,8 @@ class AdaptivePositionSizer:
         buy_velocity_weight: float = 1.25,
         micro_cap_threshold_sol: float = 0.15,  # Below this, micro aggressive mode activates
         gas_reserve_sol: float = 0.005,         # Kept untouched for network fees & rent
+        target_buy_usd: Optional[float] = None,  # User-requested target trade size in USD
+        sol_price_usd: float = 120.0,
     ):
         self.min_position_pct = min_position_pct
         self.max_position_pct = max_position_pct
@@ -49,6 +51,8 @@ class AdaptivePositionSizer:
         self.buy_velocity_weight = buy_velocity_weight
         self.micro_cap_threshold_sol = micro_cap_threshold_sol
         self.gas_reserve_sol = gas_reserve_sol
+        self.target_buy_usd = target_buy_usd
+        self.sol_price_usd = sol_price_usd
         self.logger = get_logger()
 
     def calculate_size(
@@ -93,7 +97,34 @@ class AdaptivePositionSizer:
             vol_adjusted_kelly *= self.buy_velocity_weight
 
         # ---------------------------------------------------------------------
-        # 2. Capital Regime Branching: Micro-Cap Aggressive vs Standard Kelly
+        # 2. Fixed USD Target Mode (User-Configured $5.00 entry)
+        # ---------------------------------------------------------------------
+        if self.target_buy_usd is not None and self.target_buy_usd > 0:
+            tradable_sol = max(0.0, wallet_balance_sol - self.gas_reserve_sol)
+            target_sol = self.target_buy_usd / self.sol_price_usd
+            depth_cap_sol = pool_sol_reserves * self.max_pool_impact_factor
+            final_sol = min(target_sol, tradable_sol, depth_cap_sol)
+            effective_pct = (final_sol / wallet_balance_sol) if wallet_balance_sol > 0 else 0.0
+
+            rationale = (
+                f"FIXED ${self.target_buy_usd:.2f} USD MODE | Sized: {final_sol:.4f} SOL "
+                f"(~${final_sol * self.sol_price_usd:.2f}) | Reserve: {self.gas_reserve_sol:.3f} SOL | "
+                f"Depth Cap: {depth_cap_sol:.2f} SOL"
+            )
+
+            return PositionSizeRecommendation(
+                token_mint=risk_score.token_mint,
+                wallet_liquid_sol=wallet_balance_sol,
+                raw_kelly_fraction=raw_kelly,
+                volatility_adjusted_fraction=effective_pct,
+                depth_cap_sol=depth_cap_sol,
+                final_allocation_pct=effective_pct,
+                allocated_sol=final_sol,
+                rationale=rationale,
+            )
+
+        # ---------------------------------------------------------------------
+        # 3. Capital Regime Branching: Micro-Cap Aggressive vs Standard Kelly
         # ---------------------------------------------------------------------
         if wallet_balance_sol < self.micro_cap_threshold_sol:
             # Micro-Capital Mode: High-conviction aggressive compounding

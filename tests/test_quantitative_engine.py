@@ -349,3 +349,127 @@ def test_daily_drawdown_governor():
     is_tripped2, dd2 = governor.update_portfolio_equity(current_liquid_sol=102.0, unrealized_pnl_sol=0.0)
     assert is_tripped2, "Daily Drawdown Governor must trip when drawdown exceeds 6.0%"
     assert governor.is_drawdown_tripped
+
+
+# =============================================================================
+# 8. User Strategy Specification Tests: $5 Sizing, Website Match & Anti-Clones
+# =============================================================================
+
+def test_fixed_5_dollar_position_sizer():
+    """Verify that trades size to exactly $5.00 USD in SOL while preserving gas reserve."""
+    # SOL price = $120 -> $5.00 is 5 / 120 = 0.04167 SOL
+    sizer = AdaptivePositionSizer(
+        target_buy_usd=5.0,
+        sol_price_usd=120.0,
+        gas_reserve_sol=0.005,
+    )
+    score = ComprehensiveRiskScore(
+        token_mint="TestMint",
+        composite_score=95.0,
+        security_audit=TokenSecurityAudit("TestMint", None, None, True, 100.0, False, 0, True),
+        holder_distribution=HolderDistribution("TestMint", 10.0, 2.0, 2.8, 0.4, 100, True),
+        liquidity_metrics=LiquidityMetrics("P", 50.0, 1_000_000, 0.00005, 50.0, 0.15, True),
+        simulation_result=None,
+        passed_all_filters=True,
+    )
+    vol = VolatilityMetrics("TestMint", 0.02, 0.000001, 0.00005, "NORMAL", 1.0)
+    mom = MomentumMetrics("TestMint", 180, 25, 2, 27, 30.0, 2.0, 28.0, 95.0, True)
+
+    # Wallet with 0.4229 SOL (plenty for $5 trade)
+    rec = sizer.calculate_size(
+        wallet_balance_sol=0.4229,
+        pool_sol_reserves=50.0,
+        risk_score=score,
+        volatility=vol,
+        momentum=mom,
+    )
+
+    expected_sol = 5.0 / 120.0  # ~0.04167 SOL
+    assert abs(rec.allocated_sol - expected_sol) < 0.001
+    assert "FIXED $5.00 USD MODE" in rec.rationale
+
+
+def test_metadata_website_match_and_rejection():
+    """Verify that tokens without a dedicated matching website are strictly rejected."""
+    from filters.metadata_audit import TokenMetadataAuditor
+
+    # 1. Matching dedicated website -> PASS
+    has_web, matches, fail = TokenMetadataAuditor.verify_website_match("PepeCat", "PEPECAT", "https://pepecat.io")
+    assert has_web and matches
+    assert fail is None
+
+    # 2. Matching website with TLD variations -> PASS
+    has_web2, matches2, fail2 = TokenMetadataAuditor.verify_website_match("Bonk", "BONK", "https://www.bonkcoin.com")
+    assert has_web2 and matches2
+
+    # 3. Mismatched domain name -> REJECT
+    has_web3, matches3, fail3 = TokenMetadataAuditor.verify_website_match("RandomGem", "RND", "https://unrelatedsite.com")
+    assert has_web3
+    assert not matches3
+    assert "does not match" in fail3
+
+    # 4. Social media redirect (telegram / twitter / linktree) -> REJECT
+    has_web4, matches4, fail4 = TokenMetadataAuditor.verify_website_match("MyToken", "MTK", "https://t.me/mytokengroup")
+    assert not matches4
+    assert "social media or generic platform" in fail4
+
+    # 5. Missing website -> REJECT
+    has_web5, matches5, fail5 = TokenMetadataAuditor.verify_website_match("NoWebToken", "NOWEB", None)
+    assert not has_web5
+    assert not matches5
+
+
+def test_metadata_major_clone_blacklist():
+    """Verify strict rejection of any major coin or equity clones (BTC, ETH, SOL, TSLA, etc.)."""
+    from filters.metadata_audit import TokenMetadataAuditor
+
+    # Major coin clones -> MUST BE REJECTED
+    clones = [
+        ("BabyBitcoin", "BBTC"),
+        ("Solana 2.0", "SOL2"),
+        ("Wrapped ETH", "WETH"),
+        ("Elon Tesla", "TSLA"),
+        ("Nvidia AI", "NVDA"),
+        ("Dogecoin Killer", "DOGEK"),
+        ("Official Apple Token", "AAPL"),
+    ]
+    for name, sym in clones:
+        is_clone, asset = TokenMetadataAuditor.detect_major_clone(name, sym)
+        assert is_clone, f"Expected {name} to be flagged as major clone of {asset}"
+
+    # Authentic unique tokens -> MUST PASS
+    authentic = [
+        ("PepeCat", "PEPECAT"),
+        ("Bonk", "BONK"),
+        ("Popcat", "POPCAT"),
+        ("WolfWifHat", "WOLF"),
+    ]
+    for name, sym in authentic:
+        is_clone, asset = TokenMetadataAuditor.detect_major_clone(name, sym)
+        assert not is_clone, f"Authentic token {name} should NOT be flagged as clone"
+
+
+@pytest.mark.asyncio
+async def test_market_cap_bounds_3000_to_15000():
+    """Verify that market caps below $3,000 or above $15,000 are rejected."""
+    from filters.metadata_audit import TokenMetadataAuditor
+
+    rpc = MultiRPCBalancer(endpoints=["https://api.mainnet-beta.solana.com"], dry_run=True)
+    auditor = TokenMetadataAuditor(
+        rpc,
+        min_market_cap_usd=3000.0,
+        max_market_cap_usd=15000.0,
+        sol_price_usd=120.0,
+    )
+
+    # 1. Market cap below $3,000 ($1,200) -> REJECT
+    # 5 SOL reserves * 2 = 10 SOL FDV * $120 = $1,200 USD
+    res_low = await auditor.audit_token("LowMCMint", "PoolLow", sol_reserves=5.0, token_reserves=1_000_000)
+    assert not res_low.passed
+    assert "below minimum threshold" in res_low.failure_reason
+
+    # 2. Market cap above $15,000 ($240,000) -> REJECT
+    # 1000 SOL reserves * 2 = 2000 SOL FDV * $120 = $240,000 USD
+    res_high = await auditor.audit_token("HighMCMint", "PoolHigh", sol_reserves=1000.0, token_reserves=1_000_000)
+    assert not res_high.passed
+    assert "exceeds maximum threshold" in res_high.failure_reason

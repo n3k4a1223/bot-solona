@@ -18,17 +18,19 @@ from core.types import (
     HolderDistribution,
     LiquidityMetrics,
     SimulationResult,
+    TokenMetadataAudit,
     TokenSecurityAudit,
 )
 from filters.holder_analyzer import HolderDistributionAnalyzer
 from filters.honeypot_sim import HoneypotSimulationFilter
 from filters.liquidity_health import LiquidityHealthFilter
+from filters.metadata_audit import TokenMetadataAuditor
 from filters.security_filter import TokenSecurityFilter
 
 
 class CompositeRiskEvaluator:
     """
-    Executes all anti-scam, liquidity, and holder distribution checks in parallel,
+    Executes all anti-scam, liquidity, holder distribution, and metadata checks in parallel,
     synthesizing a composite confidence score from 0.0 to 100.0.
     """
 
@@ -42,6 +44,9 @@ class CompositeRiskEvaluator:
         max_single_percent: float = 4.0,
         min_shannon_entropy: float = 2.2,
         max_roundtrip_loss_pct: float = 3.0,
+        min_market_cap_usd: float = 3000.0,
+        max_market_cap_usd: float = 15000.0,
+        sol_price_usd: float = 120.0,
     ):
         self.security_filter = TokenSecurityFilter(rpc_balancer)
         self.holder_analyzer = HolderDistributionAnalyzer(
@@ -54,6 +59,12 @@ class CompositeRiskEvaluator:
             rpc_balancer,
             min_sol_reserves=min_sol_reserves,
             min_lp_to_mc_ratio=min_lp_to_mc_ratio,
+        )
+        self.metadata_auditor = TokenMetadataAuditor(
+            rpc_balancer,
+            min_market_cap_usd=min_market_cap_usd,
+            max_market_cap_usd=max_market_cap_usd,
+            sol_price_usd=sol_price_usd,
         )
         self.honeypot_filter = HoneypotSimulationFilter(
             rpc_balancer,
@@ -111,7 +122,7 @@ class CompositeRiskEvaluator:
             )
 
         # ---------------------------------------------------------------------
-        # Tier 2 & 3: Run Liquidity Health & Holder Entropy Concurrently
+        # Tier 2, 3 & 4: Run Liquidity Health, Holder Entropy & Metadata Concurrently
         # ---------------------------------------------------------------------
         liq_task = self.liquidity_filter.evaluate_pool_liquidity(
             pool_address=pool_address,
@@ -120,12 +131,18 @@ class CompositeRiskEvaluator:
             token_reserves=token_reserves,
         )
         holder_task = self.holder_analyzer.analyze(token_mint=token_mint)
+        meta_task = self.metadata_auditor.audit_token(
+            token_mint=token_mint,
+            pool_address=pool_address,
+            sol_reserves=sol_reserves,
+            token_reserves=token_reserves,
+        )
 
         if not skip_simulation:
             sim_task = self.honeypot_filter.simulate_roundtrip(token_mint=token_mint)
-            liq_res, holder_res, sim_res = await asyncio.gather(liq_task, holder_task, sim_task)
+            liq_res, holder_res, meta_res, sim_res = await asyncio.gather(liq_task, holder_task, meta_task, sim_task)
         else:
-            liq_res, holder_res = await asyncio.gather(liq_task, holder_task)
+            liq_res, holder_res, meta_res = await asyncio.gather(liq_task, holder_task, meta_task)
             sim_res = None
 
         if not liq_res.is_sufficient and liq_res.failure_reason:
@@ -133,6 +150,9 @@ class CompositeRiskEvaluator:
 
         if not holder_res.is_healthy and holder_res.failure_reason:
             rejection_reasons.append(holder_res.failure_reason)
+
+        if not meta_res.passed and meta_res.failure_reason:
+            rejection_reasons.append(meta_res.failure_reason)
 
         if sim_res and sim_res.is_honeypot:
             rejection_reasons.append(sim_res.simulation_error or "Honeypot simulation detected exit failure")
@@ -142,6 +162,10 @@ class CompositeRiskEvaluator:
         # ---------------------------------------------------------------------
         # Start at base 100, deduct points for risk attributes
         score = 100.0
+
+        # Metadata failure hard deduct
+        if not meta_res.passed:
+            score -= 50.0
 
         # Liquidity Health contribution (max deduction 35)
         if not liq_res.is_sufficient:
@@ -179,5 +203,6 @@ class CompositeRiskEvaluator:
             liquidity_metrics=liq_res,
             simulation_result=sim_res,
             passed_all_filters=passed,
+            metadata_audit=meta_res,
             rejection_reasons=rejection_reasons,
         )

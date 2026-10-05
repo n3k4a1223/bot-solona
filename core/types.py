@@ -85,6 +85,23 @@ class LiquidityMetrics:
     lp_to_mc_ratio: float
     is_sufficient: bool
     failure_reason: Optional[str] = None
+    market_cap_usd: float = 0.0
+
+
+@dataclass
+class TokenMetadataAudit:
+    """Audit outcome for token website verification and anti-clone filtering."""
+    token_mint: str
+    token_name: str
+    token_symbol: str
+    website_url: Optional[str]
+    has_website: bool
+    website_matches_name: bool
+    is_major_clone: bool
+    matched_major_asset: Optional[str]
+    market_cap_usd: float
+    passed: bool
+    failure_reason: Optional[str] = None
 
 
 @dataclass
@@ -110,6 +127,7 @@ class ComprehensiveRiskScore:
     liquidity_metrics: LiquidityMetrics
     simulation_result: Optional[SimulationResult]
     passed_all_filters: bool
+    metadata_audit: Optional[TokenMetadataAudit] = None
     rejection_reasons: List[str] = field(default_factory=list)
 
 
