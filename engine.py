@@ -126,6 +126,7 @@ class TradingEngine:
         self._running = False
         self._position_monitor_task: Optional[asyncio.Task] = None
         self._cluster_monitor_task: Optional[asyncio.Task] = None
+        self._dex_market_scanner_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         """Starts all background services and trading loops."""
@@ -155,6 +156,7 @@ class TradingEngine:
         # 3. Start background supervision loops
         self._cluster_monitor_task = asyncio.create_task(self._cluster_telemetry_loop())
         self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
+        self._dex_market_scanner_task = asyncio.create_task(self._dex_market_scanner_loop())
 
         # 4. Start WebSocket Stream
         self.logger.log_info("Starting WebSocket DEX Log Listener...")
@@ -168,6 +170,9 @@ class TradingEngine:
 
         if self.ws_listener:
             await self.ws_listener.stop()
+
+        if self._dex_market_scanner_task and not self._dex_market_scanner_task.done():
+            self._dex_market_scanner_task.cancel()
 
         if self._position_monitor_task and not self._position_monitor_task.done():
             self._position_monitor_task.cancel()
@@ -427,3 +432,92 @@ class TradingEngine:
             except Exception as e:
                 self.logger.log_warning(f"Error in cluster telemetry loop: {e}")
                 await asyncio.sleep(10.0)
+
+    async def _dex_market_scanner_loop(self) -> None:
+        """
+        Continuously polls DexScreener token profiles to detect newly launched Solana
+        tokens with authentic websites and market caps within $3,000 - $15,000 USD.
+        Acts as a resilient, rate-limit immune stream supplementing public WebSockets.
+        """
+        import aiohttp
+
+        seen_mints = set()
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+        while self._running:
+            try:
+                await asyncio.sleep(4.0)
+                if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
+                    continue
+
+                async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=8)) as session:
+                    async with session.get("https://api.dexscreener.com/token-profiles/latest/v1") as resp:
+                        if resp.status != 200:
+                            continue
+                        profiles = await resp.json()
+
+                    if not isinstance(profiles, list):
+                        continue
+
+                    sol_profiles = [p for p in profiles if p.get("chainId") == "solana"]
+
+                    for prof in sol_profiles:
+                        token_mint = prof.get("tokenAddress")
+                        if not token_mint or token_mint in seen_mints:
+                            continue
+                        seen_mints.add(token_mint)
+
+                        # Extract website URL from links
+                        links = prof.get("links", [])
+                        website_url = None
+                        for l in links:
+                            lbl = (l.get("label") or "").lower()
+                            ltype = (l.get("type") or "").lower()
+                            if lbl == "website" or ltype == "website":
+                                website_url = l.get("url")
+                                break
+
+                        if self.config.REQUIRE_MATCHING_WEBSITE and not website_url:
+                            continue
+
+                        # Extract pair address from profile url if available
+                        url = prof.get("url", "")
+                        pair_addr = url.split("/")[-1] if "/solana/" in url else token_mint
+
+                        try:
+                            pair_api_url = f"https://api.dexscreener.com/latest/dex/pairs/solana/{pair_addr}"
+                            async with session.get(pair_api_url) as pair_resp:
+                                if pair_resp.status == 200:
+                                    pair_data = await pair_resp.json()
+                                    pairs = pair_data.get("pairs") or [pair_data.get("pair")]
+                                    p = pairs[0] if pairs and pairs[0] else None
+                                    if p:
+                                        mc = float(p.get("marketCap", 0) or 0)
+                                        if mc < self.config.MIN_MARKET_CAP_USD or mc > self.config.MAX_MARKET_CAP_USD:
+                                            continue
+
+                                        liq_usd = float(p.get("liquidity", {}).get("usd", 0) or 0)
+                                        liq_sol = liq_usd / 120.0 if liq_usd > 0 else 25.0
+
+                                        event = PoolDetectionEvent(
+                                            pool_address=pair_addr,
+                                            token_mint=token_mint,
+                                            pool_type=PoolType.RAYDIUM_V4,
+                                            initial_sol_liquidity=liq_sol,
+                                            signature=pair_addr[:16],
+                                            detected_at=time.time(),
+                                        )
+                                        self.logger.log_info(
+                                            f"[bold cyan][SCANNER CANDIDATE][/] Found {p.get('baseToken', {}).get('name')} "
+                                            f"({token_mint[:8]}) | MC: ${mc:,.0f} | Website: {website_url}"
+                                        )
+                                        asyncio.create_task(self.handle_pool_detection(event))
+                        except Exception as e:
+                            self.logger.log_debug(f"Pair lookup skipped for {token_mint}: {e}")
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.log_debug(f"DexScreener scanner loop notice: {e}")
+                await asyncio.sleep(3.0)
+

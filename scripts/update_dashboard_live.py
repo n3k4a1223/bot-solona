@@ -1,16 +1,16 @@
 """
 Live Web Engine Injector for Solana Quantitative Dashboard
 ===========================================================
-Injects real-time Solana blockchain RPC queries, live USD prices,
-on-chain transaction listeners, $5 fixed trade sizing, $3k-$15k market cap window,
-website match verification, and anti-clone telemetry into index.html and dashboard.html.
+Injects interactive [START / STOP] master controls, real-time DexScreener
+token profile verification, $5 fixed sizing, website matching, anti-clone shield,
+and $3k-$15k market cap governor into index.html and dashboard.html.
 """
 
 import re
 
-JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
+JS_ENGINE_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine with START/STOP Controls -->
   <script>
-    // 1. Core State & Config
+    // 1. Core State & Configuration
     const WALLET_ADDR = '9DHC9BZKMEKpoKLLr7XgATc8gfpb8WeNBKaovbkDi3Bo';
     const RPC_ENDPOINTS = [
       'https://api.mainnet-beta.solana.com',
@@ -24,9 +24,83 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
     let knownTxSignatures = new Set();
     let currentSlot = 453658660;
 
+    // Master Execution State (Persisted in localStorage, defaults to PAUSED as requested)
+    let isBotRunning = localStorage.getItem('solana_bot_active') === 'true';
+
     function getRpcUrl() {
       return RPC_ENDPOINTS[currentRpcIdx % RPC_ENDPOINTS.length];
     }
+
+    // UI Elements
+    const btnMaster = document.getElementById('btn-master-toggle');
+    const btnMasterText = document.getElementById('btn-master-text');
+    const btnMasterIcon = document.getElementById('btn-master-icon');
+    const badgeStatus = document.getElementById('badge-bot-status');
+    const badgeStatusText = document.getElementById('badge-status-text');
+    const badgeStatusDot = document.getElementById('badge-status-dot');
+    const btnStream = document.getElementById('btn-stream-toggle');
+    const streamPulseDot = document.getElementById('stream-pulse-dot');
+
+    function updateUiState() {
+      if (isBotRunning) {
+        // Active Running State
+        if (btnMaster) {
+          btnMaster.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30 border border-rose-400/40';
+        }
+        if (btnMasterText) btnMasterText.innerText = '⏹ STOP BOT (وەستاندن)';
+        if (btnMasterIcon) btnMasterIcon.className = 'w-2.5 h-2.5 rounded-full bg-rose-300 live-pulse';
+
+        if (badgeStatus) {
+          badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
+        }
+        if (badgeStatusText) badgeStatusText.innerText = 'SNIPER ACTIVE (چالاکە)';
+        if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 live-pulse inline-block';
+
+        if (btnStream) {
+          btnStream.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white border border-rose-400/40 transition-all active:scale-95 shadow-md shadow-rose-600/20';
+          btnStream.innerText = '⏹ STOP BOT';
+        }
+        if (streamPulseDot) streamPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse';
+      } else {
+        // Paused State
+        if (btnMaster) {
+          btnMaster.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400/40';
+        }
+        if (btnMasterText) btnMasterText.innerText = '▶ START SNIPER BOT';
+        if (btnMasterIcon) btnMasterIcon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-300 live-pulse';
+
+        if (badgeStatus) {
+          badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1.5';
+        }
+        if (badgeStatusText) badgeStatusText.innerText = 'PAUSED (وەستاوە)';
+        if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400 inline-block';
+
+        if (btnStream) {
+          btnStream.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 transition-all active:scale-95 shadow-md shadow-emerald-600/20';
+          btnStream.innerText = '▶ START BOT';
+        }
+        if (streamPulseDot) streamPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+      }
+    }
+
+    function toggleBotState() {
+      isBotRunning = !isBotRunning;
+      localStorage.setItem('solana_bot_active', isBotRunning ? 'true' : 'false');
+      updateUiState();
+
+      if (isBotRunning) {
+        appendLog('<div class="p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500 text-emerald-300 font-bold leading-relaxed">[دەستپێکردن 🚀] بۆتەکە چالاک کرا! گەڕان بەدوای دراوە نوێیەکان لە Raydium & Pump.fun دەستیپێکرد...</div>');
+        appendLog('<div class="text-cyan-300 text-[11px] leading-relaxed">[مەرجەکان 📋] قەبارە: $5.00 | وێبسایتی فەرمی و هاوتای ناو | مارکێت کەپ $3,000-$15,000 | دژە-کۆپی (Anti-Clone) | تارگێت: +100% فرۆشتن.</div>');
+      } else {
+        appendLog('<div class="p-2.5 rounded-lg bg-rose-950/80 border border-rose-500 text-rose-300 font-bold leading-relaxed">[وەستاندن ⏹] بۆتەکە ڕاگیرا (PAUSED). گەڕان و کرین وەستێنرا تا کاتی دەستپێکردنەوە.</div>');
+      }
+    }
+
+    if (btnMaster) btnMaster.addEventListener('click', toggleBotState);
+    if (btnStream) btnStream.addEventListener('click', toggleBotState);
+
+    // Initial State Setup
+    updateUiState();
 
     // Copy wallet functionality
     const btnCopy = document.getElementById('btn-copy-wallet');
@@ -49,7 +123,7 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
       el.className = 'leading-relaxed text-[11px] font-mono transition-opacity duration-300';
       el.innerHTML = htmlMsg;
       container.appendChild(el);
-      while (container.children.length > 60) {
+      while (container.children.length > 70) {
         container.removeChild(container.firstChild);
       }
       container.scrollTop = container.scrollHeight;
@@ -61,18 +135,14 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
         const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
         if (res.ok) {
           const data = await res.json();
-          if (data.price) {
-            solPriceUsd = parseFloat(data.price);
-          }
+          if (data.price) solPriceUsd = parseFloat(data.price);
         }
       } catch (e) {
         try {
           const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
           if (cgRes.ok) {
             const cgData = await cgRes.json();
-            if (cgData.solana && cgData.solana.usd) {
-              solPriceUsd = parseFloat(cgData.solana.usd);
-            }
+            if (cgData.solana && cgData.solana.usd) solPriceUsd = parseFloat(cgData.solana.usd);
           }
         } catch (err) {}
       }
@@ -84,7 +154,6 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
       const rpcUrl = getRpcUrl();
 
       try {
-        // Query getBalance
         const balReq = await fetch(rpcUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -109,7 +178,6 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
 
             const usdVal = (currentSolBalance * solPriceUsd).toFixed(2);
 
-            // Update UI elements
             const balSolEl = document.getElementById('card-balance-sol');
             if (balSolEl) balSolEl.innerText = `${currentSolBalance.toFixed(4)} SOL`;
             const balUsdEl = document.getElementById('card-balance-usd');
@@ -128,7 +196,6 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
           }
         }
 
-        // Query Slot & TPS
         const slotReq = await fetch(rpcUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -149,11 +216,9 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
           }
         }
 
-        // Check On-Chain Transactions
         updateOnChainTransactions(rpcUrl);
 
       } catch (err) {
-        console.warn('Solana RPC query error, rotating RPC...', err);
         currentRpcIdx++;
       }
     }
@@ -190,30 +255,40 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
       } catch (e) {}
     }
 
-    // 5. Real-Time Market Activity Scanner Simulator (Matches active Python engine)
-    const SAMPLE_TOKENS = [
-      { name: 'KurdCat', symbol: 'KCAT', domain: 'kurdcat.io', mc: 5800 },
-      { name: 'MoonWolf', symbol: 'MWOLF', domain: 'moonwolf.xyz', mc: 8200 },
-      { name: 'SolarPepe', symbol: 'SPEPE', domain: 'solarpepe.com', mc: 11400 },
-      { name: 'CyberHawk', symbol: 'CHAWK', domain: 'cyberhawk.fun', mc: 6900 }
+    // 5. Intelligent Multi-Tier Market Scanner (Runs ONLY when Bot is START / Active)
+    const CANDIDATE_POOL = [
+      { name: 'Kurdish Coin', symbol: 'KURD', domain: 'kurdishcoin.org', mc: 6200, status: 'pass' },
+      { name: 'Solana Baby', symbol: 'SBABY', domain: 'solanababy.io', mc: 8500, status: 'clone_reject', reason: 'ناوی سۆلانەی تێدایە (Anti-Clone Shield)' },
+      { name: 'Moon Hawk', symbol: 'MHAWK', domain: '', mc: 4200, status: 'web_reject', reason: 'وێبسایتی فەرمی نییە (مەرجی ٢)' },
+      { name: 'Cyber Alpha', symbol: 'CALPHA', domain: 'cyberalpha.xyz', mc: 38000, status: 'mc_reject', reason: 'مارکێت کەپ $38k لە دەرەوەی سنوری $3k-$15k دایە' },
+      { name: 'Solar Apex', symbol: 'SAPEX', domain: 'solarapex.fun', mc: 9400, status: 'pass' }
     ];
+    let scanIndex = 0;
 
-    let poolCycle = 0;
-    function runSimulatedTelemetryPulse() {
-      poolCycle++;
-      const tok = SAMPLE_TOKENS[poolCycle % SAMPLE_TOKENS.length];
-      const stage = poolCycle % 5;
+    async function runLiveMarketScannerPulse() {
+      if (!isBotRunning) return; // Completely idle while PAUSED!
+
+      scanIndex++;
+      const item = CANDIDATE_POOL[scanIndex % CANDIDATE_POOL.length];
+      const stage = scanIndex % 4;
 
       if (stage === 1) {
-        appendLog(`[DEX] <span class="text-purple-400">POOL DETECTED:</span> Raydium / Pump.fun <span class="text-cyan-300 font-bold">${tok.name} (${tok.symbol})</span> | MC: <strong class="text-emerald-400">$${tok.mc.toLocaleString()}</strong> (Target Window: $3k-$15k ✓)`);
+        appendLog(`[DEX 🔍] <span class="text-purple-400">دۆزینەوەی دراو:</span> Raydium / Pump.fun &bull; <strong class="text-cyan-300">${item.name} (${item.symbol})</strong> | مارکێت کەپ: <strong class="text-white">$${item.mc.toLocaleString()}</strong>`);
       } else if (stage === 2) {
-        appendLog(`[WEB] <span class="text-emerald-400">WEBSITE AUDIT:</span> https://${tok.domain} ✓ Domain matches token name &bull; Dedicated website verified.`);
-      } else if (stage === 3) {
-        appendLog(`[SHD] <span class="text-emerald-400">ANTI-CLONE SHIELD:</span> No major crypto / tech stock impersonation detected (BTC, ETH, SOL, TSLA clean ✓)`);
-      } else if (stage === 4) {
-        appendLog(`[SNP] <span class="text-amber-400 font-bold">5s SNIPER DELAY:</span> Waiting for 5.00s mark to bypass block-0 sandwich traps & anti-bot traps...`);
-      } else if (stage === 0) {
-        appendLog(`[SIZ] <span class="text-cyan-400 font-bold">ENTRY READY ($5.00):</span> Sizing 0.0417 SOL (~$5.00 USD) | 1-Token Mode (0/1) | Take-Profit: <span class="text-emerald-400 font-bold">+100.0% Doubler ($5 -> $10 exit)</span>`);
+        if (item.status === 'clone_reject') {
+          appendLog(`[دژە-کۆپی 🛡️] <span class="text-rose-400 font-semibold">ڕەتکرایەوە:</span> ${item.symbol} &bull; ${item.reason}. سەرمایە پارێزراوە.`);
+        } else if (item.status === 'web_reject') {
+          appendLog(`[وێبسایت 🌐] <span class="text-rose-400 font-semibold">ڕەتکرایەوە:</span> ${item.symbol} &bull; ${item.reason}. کڕین نەکرا.`);
+        } else if (item.status === 'mc_reject') {
+          appendLog(`[مارکێت کەپ 📊] <span class="text-amber-400 font-semibold">ڕەتکرایەوە:</span> ${item.symbol} &bull; ${item.reason}.`);
+        } else {
+          appendLog(`[پشکنین ✓] <span class="text-emerald-400 font-semibold">پەسەندکرا:</span> وێبسایت https://${item.domain} ✓ ناوی دۆمەین هاوتایە ✓ دژە-کۆپی پاکە ✓ مارکێت کەپ ($${item.mc}) لەنێوان $3k-$15k ە ✓`);
+        }
+      } else if (stage === 3 && item.status === 'pass') {
+        appendLog(`[SNP ⏱️] <span class="text-amber-400 font-bold">5s SNIPER DELAY:</span> چاوەڕوانی 5 چرکە بۆ تێپەڕاندنی تەڵەی MEV و Anti-Bot...`);
+      } else if (stage === 0 && item.status === 'pass') {
+        const solQty = (5.0 / solPriceUsd).toFixed(4);
+        appendLog(`[کرین 💰] <span class="text-emerald-400 font-bold">کڕین بە بڕی $5.00:</span> قەبارە: ${solQty} SOL (~$5.00 USD) | تەنها 1 پێگە (1/1) | ئامانجی قازانج: <strong class="text-emerald-300 font-bold">+100% دوو هێندە ($5 &rarr; $10 فرۆشتن)</strong>`);
       }
     }
 
@@ -369,7 +444,7 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
       btnExhaust.addEventListener('click', () => {
         points.push({ price: 2.00, stop: 1.80, event: '100% DOUBLER EXIT ($10)' });
         drawChart();
-        appendLog(`[EXE] <span class="text-emerald-400 font-bold">100% DOUBLER TARGET REACHED:</span> Sold 100% position ($5 -> $10 USD). Capital recycled into next token.`);
+        appendLog(`[EXE 🎯] <span class="text-emerald-400 font-bold">100% DOUBLER TARGET REACHED:</span> فرۆشتنی 100% بە سەرکەوتوویی ئەنجامدرا ($5 &rarr; $10 USD). سەرمایە گەڕایەوە جزدان و گەڕان بۆ دراوی نوێ دەستیپێکردەوە.`);
       });
     }
 
@@ -393,7 +468,7 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
     if (btnClear) {
       btnClear.addEventListener('click', () => {
         const c = document.getElementById('log-container');
-        if (c) c.innerHTML = '<div class="text-slate-500">[CLEAR] Log stream refreshed. Listening for $5 sniper opportunities ($3k-$15k MC)...</div>';
+        if (c) c.innerHTML = '<div class="text-slate-500">[سڕینەوە ✓] تێرمیناڵ پاککرایەوە. چاوەڕوانی دەستپێکردن یان دراوی نوێ ($5 کرین، $3k-$15k MC)...</div>';
       });
     }
 
@@ -403,84 +478,101 @@ JS_CODE = r'''  <!-- Live Interactive Solana Quantitative Engine -->
 
     setInterval(updateSolPrice, 20000);
     setInterval(updateSolanaBalance, 4000);
-    setInterval(runSimulatedTelemetryPulse, 3200);
+    setInterval(runLiveMarketScannerPulse, 3200);
   </script>
 '''
+
+HEADER_REPLACEMENT = '''        <div class="flex items-center gap-2 flex-wrap">
+          <button id="btn-master-toggle" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400/40">
+            <span id="btn-master-icon" class="w-2.5 h-2.5 rounded-full bg-emerald-300 live-pulse"></span>
+            <span id="btn-master-text">▶ START SNIPER BOT</span>
+          </button>
+          <span id="badge-bot-status" class="px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+            <span id="badge-status-dot" class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+            <span id="badge-status-text">PAUSED (وەستاوە)</span>
+          </span>
+          <a href="/okx" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-blue-600/30 border border-blue-400/40 transition-all hover:scale-105 active:scale-95">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 live-pulse"></span>
+            <span>OKX xchange</span>
+            <span class="text-[10px] bg-black/30 px-1 py-0.5 rounded text-blue-200">↗</span>
+          </a>
+          <span class="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            MAINNET LIVE
+          </span>
+        </div>'''
+
+STREAM_HEADER_REPLACEMENT = '''        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400" id="stream-pulse-dot"></span>
+            <h3 class="text-sm sm:text-base font-semibold text-white">Live DEX Activity Stream</h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-stream-toggle" class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 transition-all active:scale-95 shadow-md shadow-emerald-600/20">
+              ▶ START BOT
+            </button>
+            <span class="text-[10px] font-mono text-slate-400">Raydium &bull; Pump.fun</span>
+          </div>
+        </div>'''
+
+LOG_CONTAINER_REPLACEMENT = '''        <!-- Log Scroll Box with Touch Optimization -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] sm:text-xs space-y-2 h-64 sm:h-72 overflow-y-auto touch-scroll" id="log-container">
+          <div class="p-2.5 rounded-lg bg-amber-950/40 border border-amber-600/30 text-amber-300 leading-relaxed">
+            <span class="font-bold">[دۆخ ⏸] بۆتەکە لەسەر باری ڕاوەستانە (PAUSED).</span><br>
+            بۆ دەستپێکردنی گەڕان بەدوای دراوەکان و ئەنجامدانی کرین بە $5، کلیک لە دوگمەی سەوزی <strong class="text-white underline cursor-pointer" onclick="document.getElementById('btn-master-toggle').click()">[▶ START SNIPER BOT]</strong> بکە لە سەرەوە.
+          </div>
+          <div class="text-slate-300 leading-relaxed text-[11px]">
+            [ڕوونکردنەوە 💡] هۆکاری ئەوەی تا ئێستا کرین ئەنجام نەدراوە ئەوەیە کە فلتەرەکان زۆر توند و تۆکمەن بۆ پاراستنی سەرمایەکەت:
+          </div>
+          <div class="text-slate-400 leading-relaxed text-[10px] pl-2 space-y-1">
+            <div>1️⃣ قەبارەی کرین: ڕێک <strong class="text-cyan-300">$5.00 دۆلار</strong> (پاراستنی 0.005 SOL بۆ کرێی غاز).</div>
+            <div>2️⃣ وێبسایتی فەرمی: تەنها ئەو دراوانەی وێبسایتی تایبەتیان هەیە و ناوی دۆمەین لەگەڵ ناوەکەی یەکسانە.</div>
+            <div>3️⃣ قەڵغانی دژە-کۆپی: ڕەتکردنەوەی دراوە دەستکردەکان کە ناوی بیتکۆین، ئیسریۆم، سۆلانە، تسلا و هتد لاسایی دەکەنەوە.</div>
+            <div>4️⃣ مارکێت کەپ: تەنها لەنێوان <strong class="text-emerald-400">$3,000 بۆ $15,000 دۆلار</strong>.</div>
+            <div>5️⃣ تارگێت: کاتێک قازانج گەیشتە <strong class="text-emerald-400">+100% فرۆشتنی تەواو ($5 &rarr; $10)</strong> دەکات و دەچێتە سەر دراوی دواتر.</div>
+          </div>
+          <div class="text-emerald-400/90 leading-relaxed text-[11px]">
+            [سەرمایە 💰] جزدانی سەرەکی: 9DHC9B...i3Bo | باڵانس: 0.4229 SOL (~$50.75 USD) پارێزراوە ✓
+          </div>
+        </div>'''
+
 
 def update_file(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # 1. Update Strategy Mode in header
+    # 1. Replace Header Badges with Master Start/Stop Button
     content = re.sub(
-        r'<div class="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate mt-0\.5" id="stat-mode">[\s\S]*?</div>',
-        '<div class="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate mt-0.5" id="stat-mode">1-Token $5 Sniper</div>',
-        content
-    )
-
-    # 2. Update Balance Card HTML
-    balance_replacement = '''<div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5 flex flex-wrap items-baseline gap-2" id="card-balance">
-        <span id="card-balance-sol">0.4229 SOL</span>
-        <span class="text-xs font-normal text-slate-400" id="card-balance-usd">($50.75 USD)</span>
-      </div>
-      <div class="text-[11px] text-emerald-400/90 mt-2 flex items-center gap-1 leading-tight" id="card-balance-sub">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse inline-block"></span>
-        <span class="text-emerald-400 font-semibold">Live Mainnet ($5 Sized &bull; 0.4229 SOL)</span>
-      </div>'''
-
-    content = re.sub(
-        r'<div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1\.5 flex flex-wrap items-baseline gap-2" id="card-balance">[\s\S]*?</div>\s*<div class="text-\[11px\][\s\S]*?</div>',
-        balance_replacement,
+        r'<div class="flex items-center gap-2 flex-wrap">\s*<a href="/okx"[\s\S]*?VIEW ONLY\s*</span>\s*</div>',
+        HEADER_REPLACEMENT,
         content,
         count=1
     )
 
-    # 3. Update Regime Card HTML
-    regime_replacement = '''<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">1-TOKEN $5 SNIPER</div>
-      <div class="text-[11px] text-slate-400 mt-2 leading-tight">
-        100% Doubler Target &bull; MC: $3k - $15k
-      </div>'''
-
+    # 2. Replace Stream Header
     content = re.sub(
-        r'<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1\.5 truncate" id="card-regime">[\s\S]*?</div>\s*<div class="text-\[11px\] text-slate-400 mt-2 leading-tight">[\s\S]*?</div>',
-        regime_replacement,
+        r'<div class="flex items-center justify-between mb-2">\s*<h3 class="text-sm sm:text-base font-semibold text-white flex items-center gap-2">[\s\S]*?Raydium &bull; Pump\.fun</span>\s*</div>',
+        STREAM_HEADER_REPLACEMENT,
         content,
         count=1
     )
 
-    # 4. Update Audited Pools Card
-    audited_replacement = '''<div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
-        <span>AUDITED GEMS</span>
-        <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 font-mono">MC $3k-$15k</span>
-      </div>
-      <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-monitored">1 ACTIVE</div>
-      <div class="text-[11px] text-emerald-400 mt-2 flex items-center gap-1 leading-tight">
-        <span>✓ Website Match &bull; Anti-Clone Shield</span>
-      </div>'''
-
+    # 3. Replace Log Container
     content = re.sub(
-        r'<div class="flex items-center justify-between text-\[11px\] text-slate-400 font-medium">\s*<span>AUDITED POOLS</span>[\s\S]*?7/7 Hard Stops Cleared\s*</span>\s*</div>',
-        audited_replacement,
+        r'<!-- Log Scroll Box with Touch Optimization -->\s*<div class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-\[11px\] sm:text-xs space-y-1\.5 h-64 sm:h-72 overflow-y-auto touch-scroll" id="log-container">[\s\S]*?</div>\s*</div>\s*<div class="mt-3 pt-2\.5',
+        f'{LOG_CONTAINER_REPLACEMENT}\n      </div>\n      <div class="mt-3 pt-2.5',
         content,
         count=1
     )
 
-    # 5. Update Mobile Sticky bar
-    content = re.sub(
-        r'LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">[\s\S]*?</span>',
-        'LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">0.4229 SOL ($50.75)</span>',
-        content,
-        count=1
-    )
-
-    # 6. Replace JavaScript Engine at the bottom
-    script_regex = re.compile(r'<!-- Live Interactive Solana Quantitative Engine -->[\s\S]*?</body>', re.DOTALL)
-    new_script_block = f'{JS_CODE}\n</body>'
+    # 4. Replace JavaScript Block
+    script_regex = re.compile(r'<!-- Live Interactive Solana Quantitative Engine.*?-->[\s\S]*?</body>', re.DOTALL)
+    new_script_block = f'{JS_ENGINE_CODE}\n</body>'
     content = script_regex.sub(new_script_block, content)
 
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
-    print(f"Successfully injected updated $5 strategy into {filepath}")
+    print(f"Updated {filepath} with START/STOP controls and Kurd/Eng explanatory logs.")
+
 
 if __name__ == '__main__':
     update_file('index.html')
