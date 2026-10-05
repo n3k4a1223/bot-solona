@@ -98,13 +98,18 @@ class HolderDistributionAnalyzer:
                 failure_reason="No holder accounts returned by RPC",
             )
 
-        # Filter out DEX liquidity vaults and burn accounts
+        # Filter out DEX liquidity vaults, bonding curve accounts, and burn accounts
+        # Note: In bonding curve pools (e.g. pump.fun), the pool bonding curve token account
+        # holds 50-80% of total supply. Any account holding >= 20% of supply is the pool reserve.
         non_pool_holders = []
         for acc in largest_accounts:
             address = acc.get("address", "")
             amount = float(acc.get("amount", 0))
-            if address not in known_vaults:
-                non_pool_holders.append((address, amount))
+            if address in known_vaults:
+                continue
+            if total_supply > 0 and (amount / total_supply) >= 0.20:
+                continue
+            non_pool_holders.append((address, amount))
 
         if not non_pool_holders:
             return HolderDistribution(
