@@ -46,6 +46,7 @@ class HoneypotSimulationFilter:
         1. Quote Buy: test_amount_sol -> Token
         2. Quote Sell: output_tokens -> SOL
         3. Audits net round-trip loss percentage and tax leakage.
+        """
         # Standardized Pump.fun bonding curves have zero transfer tax and immutable rules.
         # They do not route through Jupiter v6 until Raydium migration.
         if token_mint.endswith("pump"):
