@@ -192,9 +192,10 @@ class TokenMetadataAuditor:
         market_cap_usd = 0.0
 
         # Compute on-chain baseline Market Cap (FDV)
-        if sol_reserves > 0 and token_reserves > 0:
-            price_sol = sol_reserves / token_reserves
-            # Base FDV from 1 Billion standard supply if RPC unavailable, or from reserves
+        if token_mint.endswith("pump"):
+            # Pump.fun bonding curve starts at ~30 SOL virtual liquidity (~$4,500 - $6,000 USD FDV)
+            market_cap_usd = 5000.0 if sol_reserves <= 10.0 else (sol_reserves * price_usd * 2.0)
+        elif sol_reserves > 0 and token_reserves > 0:
             estimated_fdv_sol = 2.0 * sol_reserves
             market_cap_usd = estimated_fdv_sol * price_usd
 
