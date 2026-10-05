@@ -447,11 +447,11 @@ class TradingEngine:
 
         while self._running:
             try:
-                await asyncio.sleep(4.0)
+                await asyncio.sleep(1.0)
                 if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
                     continue
 
-                async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=8)) as session:
+                async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     async with session.get("https://api.dexscreener.com/token-profiles/latest/v1") as resp:
                         if resp.status != 200:
                             continue
@@ -467,19 +467,6 @@ class TradingEngine:
                         if not token_mint or token_mint in seen_mints:
                             continue
                         seen_mints.add(token_mint)
-
-                        # Extract website URL from links
-                        links = prof.get("links", [])
-                        website_url = None
-                        for l in links:
-                            lbl = (l.get("label") or "").lower()
-                            ltype = (l.get("type") or "").lower()
-                            if lbl == "website" or ltype == "website":
-                                website_url = l.get("url")
-                                break
-
-                        if self.config.REQUIRE_MATCHING_WEBSITE and not website_url:
-                            continue
 
                         # Extract pair address from profile url if available
                         url = prof.get("url", "")
