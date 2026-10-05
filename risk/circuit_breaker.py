@@ -47,11 +47,19 @@ class CircuitBreakerManager:
             throttle_multiplier=1.0,
         )
 
+    def set_initial_equity(self, initial_equity_sol: float) -> None:
+        """Sets the baseline peak equity for the trading session."""
+        self.peak_equity_sol = max(0.01, initial_equity_sol)
+        self.day_start_timestamp = time.time()
+        self.is_drawdown_tripped = False
+
     def update_portfolio_equity(self, current_liquid_sol: float, unrealized_pnl_sol: float) -> Tuple[bool, float]:
         """
         Updates portfolio equity and evaluates the Daily Drawdown Governor.
         Returns: (is_tripped: bool, current_drawdown_pct: float)
         """
+        if self.peak_equity_sol <= 0.0:
+            self.peak_equity_sol = max(0.01, current_liquid_sol + unrealized_pnl_sol)
         # Reset peak equity at 00:00 UTC daily
         now = time.time()
         if now - self.day_start_timestamp >= 86400.0:

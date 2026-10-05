@@ -16,15 +16,15 @@ JS_ENGINE_CODE = r'''  <!-- Ultra-Fast High-Frequency Solana Quantitative Engine
     // 1. Core State & Configuration
     const WALLET_ADDR = '9DHC9BZKMEKpoKLLr7XgATc8gfpb8WeNBKaovbkDi3Bo';
     const RPC_ENDPOINTS = [
-      'https://api.mainnet-beta.solana.com',
-      'https://solana-mainnet.rpc.extrnode.com',
-      'https://rpc.ankr.com/solana'
+      'https://mainnet.helius-rpc.com/?api-key=f854b62f-2612-4417-a131-28191ae072cb',
+      'https://rpc.ankr.com/solana',
+      'https://api.mainnet-beta.solana.com'
     ];
     let currentRpcIdx = 0;
-    let baseWalletSol = 0.4229;
+    let baseWalletSol = 0.4150;
     let realizedProfitSol = 0.0;
-    let solPriceUsd = 120.0;
-    let peakBalance = 0.4229;
+    let solPriceUsd = 125.0;
+    let peakBalance = 0.4150;
     let knownTxSignatures = new Set();
     let currentSlot = 453658660;
 
@@ -34,30 +34,30 @@ JS_ENGINE_CODE = r'''  <!-- Ultra-Fast High-Frequency Solana Quantitative Engine
     // 2 Concurrent Active Positions (Dual-Token Mode: Slot 1 & Slot 2)
     let activePositions = [
       {
-        active: true,
-        name: 'Chill Bull',
-        symbol: 'CHILLBULL',
-        mint: '8e27q11o51u84wG2k8iA4w3rQdJ1X35fA3c938oUpump',
-        mc: 6184,
-        entryPriceSol: 0.00000412,
-        currentPriceSol: 0.00000618,
-        pnlPct: 50.0,
+        active: false,
+        name: 'Searching Pump.fun...',
+        symbol: 'PUMP',
+        mint: '',
+        mc: 0,
+        entryPriceSol: 0,
+        currentPriceSol: 0,
+        pnlPct: 0,
         investedUsd: 5.0,
         targetUsd: 10.0,
-        entryTimestamp: Date.now() - 15000
+        entryTimestamp: 0
       },
       {
-        active: true,
-        name: 'Blu Money',
-        symbol: 'BLU',
-        mint: 'EC7JXhzfSDe9oT3kL94q38oUpumpB92Kx',
-        mc: 4893,
-        entryPriceSol: 0.00000320,
-        currentPriceSol: 0.00000416,
-        pnlPct: 30.0,
+        active: false,
+        name: 'Searching Pump.fun...',
+        symbol: 'PUMP',
+        mint: '',
+        mc: 0,
+        entryPriceSol: 0,
+        currentPriceSol: 0,
+        pnlPct: 0,
         investedUsd: 5.0,
         targetUsd: 10.0,
-        entryTimestamp: Date.now() - 8000
+        entryTimestamp: 0
       }
     ];
 

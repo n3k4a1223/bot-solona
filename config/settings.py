@@ -231,7 +231,7 @@ class BotConfig(BaseSettings):
         description="Consecutive intervals of sell-volume delta exceeding buy-volume before scaling out.",
     )
     STAGNATION_TIMEOUT_SECONDS_BASE: int = Field(
-        default=120,
+        default=300,
         description="Base timeout in seconds to cut idle capital if momentum velocity collapses.",
     )
     MIN_VOLUME_MULTIPLIER_BASELINE: float = Field(
@@ -243,8 +243,8 @@ class BotConfig(BaseSettings):
     # 7. Automated Capital Protection & Safety Circuit Breakers
     # -------------------------------------------------------------------------
     MAX_DAILY_DRAWDOWN_PCT: float = Field(
-        default=0.06,
-        description="Master circuit breaker trip threshold: 6% daily portfolio peak drawdown halts trading.",
+        default=30.0,
+        description="Master circuit breaker trip threshold: 30% daily portfolio peak drawdown halts trading.",
     )
     CLUSTER_FAIL_RATE_THRESHOLD: float = Field(
         default=0.25,

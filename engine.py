@@ -124,6 +124,8 @@ class TradingEngine:
         self.active_positions: Dict[str, OpenPosition] = {}
         self.monitored_pools: Dict[str, Dict] = {}
         self.wallet_liquid_sol: float = 10.0  # Default simulation balance
+        self._buy_lock = asyncio.Lock()
+        self._pending_buys: int = 0
         self._running = False
         self._position_monitor_task: Optional[asyncio.Task] = None
         self._cluster_monitor_task: Optional[asyncio.Task] = None
@@ -151,6 +153,7 @@ class TradingEngine:
         else:
             self.logger.log_info(f"Dry-Run Initial Balance: [bold green]{self.wallet_liquid_sol:.4f} SOL[/]")
 
+        self.circuit_breaker.set_initial_equity(self.wallet_liquid_sol)
         self.logger.liquid_balance_sol = self.wallet_liquid_sol
         self.logger.peak_equity_sol = self.wallet_liquid_sol
 
@@ -225,8 +228,8 @@ class TradingEngine:
         if remaining_delay > 0:
             await asyncio.sleep(remaining_delay)
 
-        # Re-check single-position guard after delay
-        if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
+        # Re-check dual-position guard after delay
+        if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
             return
 
         initial_sol = event.initial_sol_liquidity if event.initial_sol_liquidity > 0 else 35.0
@@ -271,86 +274,96 @@ class TradingEngine:
         Evaluates dynamic entry criteria: momentum velocity percentile,
         volatility regime, Kelly position sizing, and circuit breakers.
         """
-        # Strict single-position guard
-        if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
-            return
+        async with self._buy_lock:
+            if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
+                return
+            self._pending_buys += 1
 
-        pool_data = self.monitored_pools.get(token_mint)
-        if not pool_data or token_mint in self.active_positions:
-            return
+        try:
+            pool_data = self.monitored_pools.get(token_mint)
+            if not pool_data or token_mint in self.active_positions:
+                return
 
-        # 1. Check Circuit Breakers
-        if self.circuit_breaker.is_drawdown_tripped:
-            return
+            # 1. Check Circuit Breakers
+            if self.circuit_breaker.is_drawdown_tripped:
+                return
 
-        # 2. Evaluate Momentum Inflow Velocity
-        pool_age = time.time() - pool_data.get("discovered_at", 0)
-        momentum = self.momentum_tracker.evaluate_momentum(token_mint)
-        # For sniper listings (< 180s old), skip rolling 3-min momentum check to enable 5s sniper
-        if pool_age > 180.0 and not momentum.is_90th_percentile:
-            return
+            # 2. Evaluate Momentum Inflow Velocity
+            pool_age = time.time() - pool_data.get("discovered_at", 0)
+            momentum = self.momentum_tracker.evaluate_momentum(token_mint)
+            # For sniper listings (< 180s old), skip rolling 3-min momentum check to enable 5s sniper
+            if pool_age > 180.0 and not momentum.is_90th_percentile:
+                return
 
-        # 3. Calculate Volatility Metrics
-        volatility = self.volatility_engine.calculate_volatility(token_mint)
+            # 3. Calculate Volatility Metrics
+            volatility = self.volatility_engine.calculate_volatility(token_mint)
 
-        # 4. Calculate Position Size ($5.00 entry per token)
-        sol_price = 125.0
-        target_sol = self.config.TARGET_BUY_USD / sol_price
-        # Leave at least 0.005 SOL buffer for transaction fees
-        max_allocatable = max(0.0, self.wallet_liquid_sol - 0.005)
-        if max_allocatable < 0.01:
-            self.logger.log_warning(
-                f"Insufficient balance ({self.wallet_liquid_sol:.4f} SOL) to allocate $5 trade. Keeping gas buffer."
+            # 4. Calculate Position Size ($5.00 entry per token)
+            sol_price = 125.0
+            target_sol = self.config.TARGET_BUY_USD / sol_price
+            # Leave at least 0.005 SOL buffer for transaction fees
+            max_allocatable = max(0.0, self.wallet_liquid_sol - 0.005)
+            if max_allocatable < 0.01:
+                self.logger.log_warning(
+                    f"Insufficient balance ({self.wallet_liquid_sol:.4f} SOL) to allocate $5 trade. Keeping gas buffer."
+                )
+                return
+
+            final_sol = min(target_sol, max_allocatable)
+
+            self.logger.log_info(
+                f"ENTRY TRIGGERED for [bold cyan]{token_mint[:8]}[/]! "
+                f"Allocating: [bold white]{final_sol:.4f} SOL[/] (~${final_sol * sol_price:.2f} USD) | "
+                f"Active Slots: {len(self.active_positions) + 1}/{self.config.MAX_ACTIVE_POSITIONS} | "
+                f"Target: +{self.config.TARGET_TAKE_PROFIT_PCT:.0f}% Doubler ($5 -> $10)"
             )
-            return
 
-        final_sol = min(target_sol, max_allocatable)
-
-        self.logger.log_info(
-            f"ENTRY TRIGGERED for [bold cyan]{token_mint[:8]}[/]! "
-            f"Allocating: [bold white]{final_sol:.4f} SOL[/] (~${final_sol * sol_price:.2f} USD) | "
-            f"Active Slots: {len(self.active_positions) + 1}/{self.config.MAX_ACTIVE_POSITIONS} | "
-            f"Target: +{self.config.TARGET_TAKE_PROFIT_PCT:.0f}% Doubler ($5 -> $10)"
-        )
-
-        # 5. Execute Buy Swap via PumpPortal / Jupiter & Jito MEV
-        success, sig, tokens_acquired = await self.executor.execute_buy(
-            token_mint=token_mint,
-            amount_sol=final_sol,
-            slippage_bps=self.config.MAX_SLIPPAGE_BPS,
-            is_congested=self.circuit_breaker.cluster_state.is_congested,
-            is_exceptional_momentum=(momentum.buyer_growth_percentile >= 95.0),
-        )
-
-        if success and tokens_acquired > 0:
-            price_sol = pool_data["price_sol"]
-            initial_stop = price_sol - (self.config.ATR_MULTIPLIER * volatility.atr_sol)
-
-            pos = OpenPosition(
+            # 5. Execute Buy Swap via PumpPortal / Jupiter & Jito MEV
+            success, sig, tokens_acquired = await self.executor.execute_buy(
                 token_mint=token_mint,
-                pool_address=pool_data["pool_address"],
-                pool_type=PoolType.PUMP_FUN if token_mint.endswith("pump") else PoolType.RAYDIUM_V4,
-                entry_price_sol=price_sol,
-                current_price_sol=price_sol,
-                peak_price_sol=price_sol,
-                tokens_amount=tokens_acquired,
-                sol_invested=final_sol,
-                entry_timestamp=time.time(),
-                trailing_stop_price=initial_stop,
+                amount_sol=final_sol,
+                slippage_bps=self.config.MAX_SLIPPAGE_BPS,
+                is_congested=self.circuit_breaker.cluster_state.is_congested,
+                is_exceptional_momentum=(momentum.buyer_growth_percentile >= 95.0),
             )
-            self.active_positions[token_mint] = pos
-            self.wallet_liquid_sol -= final_sol
-            self.logger.active_positions = self.active_positions
-            self.logger.liquid_balance_sol = self.wallet_liquid_sol
+
+            if success and tokens_acquired > 0:
+                price_sol = pool_data["price_sol"]
+                initial_stop = price_sol - (self.config.ATR_MULTIPLIER * volatility.atr_sol)
+
+                pos = OpenPosition(
+                    token_mint=token_mint,
+                    pool_address=pool_data["pool_address"],
+                    pool_type=PoolType.PUMP_FUN if token_mint.endswith("pump") else PoolType.RAYDIUM_V4,
+                    entry_price_sol=price_sol,
+                    current_price_sol=price_sol,
+                    peak_price_sol=price_sol,
+                    tokens_amount=tokens_acquired,
+                    sol_invested=final_sol,
+                    entry_timestamp=time.time(),
+                    trailing_stop_price=initial_stop,
+                )
+                self.active_positions[token_mint] = pos
+                if not self.config.DRY_RUN:
+                    self.wallet_liquid_sol = await self.rpc_balancer.get_balance(self.executor.pubkey_str)
+                else:
+                    self.wallet_liquid_sol -= final_sol
+                self.logger.active_positions = self.active_positions
+                self.logger.liquid_balance_sol = self.wallet_liquid_sol
+        finally:
+            async with self._buy_lock:
+                self._pending_buys = max(0, self._pending_buys - 1)
 
     async def _position_monitoring_loop(self) -> None:
         """
-        Continuously evaluates active positions for ATR trailing stop breaches,
-        buyer volume exhaustion scale-outs, and stagnation cuts.
+        Continuously evaluates active positions for real-time DexScreener price ticks,
+        +100% Take-Profit doubler ($5 -> $10), ATR trailing stop breaches, and stagnation cuts.
         """
+        import aiohttp
+
         while self._running:
             try:
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(2.0)
                 if not self.active_positions:
                     continue
 
@@ -359,11 +372,29 @@ class TradingEngine:
                     if not pos or not pos.is_active:
                         continue
 
+                    # 1. Fetch real-time market price via DexScreener
+                    try:
+                        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4.0)) as session:
+                            async with session.get(
+                                f"https://api.dexscreener.com/latest/dex/tokens/{token_mint}",
+                                headers={"User-Agent": "Mozilla/5.0"}
+                            ) as resp:
+                                if resp.status == 200:
+                                    dex_data = await resp.json()
+                                    pairs = dex_data.get("pairs", [])
+                                    if pairs and pairs[0].get("priceNative"):
+                                        live_p = float(pairs[0]["priceNative"])
+                                        if live_p > 0:
+                                            self.volatility_engine.record_price(token_mint, live_p)
+                                            pos.current_price_sol = live_p
+                    except Exception:
+                        pass
+
                     # Update price tick
                     volatility = self.volatility_engine.calculate_volatility(token_mint)
                     momentum = self.momentum_tracker.evaluate_momentum(token_mint)
 
-                    current_price = volatility.current_price_sol
+                    current_price = pos.current_price_sol
                     action, reason, fraction = self.exit_engine.evaluate_position_exit(
                         position=pos,
                         current_price_sol=current_price,
@@ -383,7 +414,10 @@ class TradingEngine:
 
                         if success:
                             pos.tokens_amount -= tokens_to_sell
-                            self.wallet_liquid_sol += sol_back
+                            if not self.config.DRY_RUN:
+                                self.wallet_liquid_sol = await self.rpc_balancer.get_balance(self.executor.pubkey_str)
+                            else:
+                                self.wallet_liquid_sol += sol_back
                             pos.realized_pnl_sol += sol_back - (pos.sol_invested * fraction)
 
                             if pos.tokens_amount <= 0 or fraction >= 0.99:
@@ -447,7 +481,7 @@ class TradingEngine:
         while self._running:
             try:
                 await asyncio.sleep(1.0)
-                if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
+                if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
                     continue
 
                 candidate_tokens = []

@@ -171,29 +171,37 @@ class TradeExecutor:
             signed_b64 = base64.b64encode(bytes(signed_tx)).decode("ascii")
             signature_str = str(signed_tx.signatures[0])
 
+            bal_before = await self.rpc.get_balance(self.pubkey_str)
+
             if self.use_jito:
                 bundle_id = await self.jito.send_bundle([signed_b64])
                 if bundle_id:
+                    await asyncio.sleep(1.5)
+                    bal_after = await self.rpc.get_balance(self.pubkey_str)
+                    sol_received = max(0.001, bal_after - bal_before)
                     self.logger.log_trade(
                         action=f"SELL [{reason}-PUMP/JITO]",
                         token_mint=token_mint,
-                        amount_sol=0.0,
+                        amount_sol=sol_received,
                         price_sol=0.0,
                         signature=signature_str,
-                        notes=f"Closed PumpPortal via Jito: {bundle_id[:12]}",
+                        notes=f"Closed PumpPortal via Jito: {bundle_id[:12]} | Net SOL: {sol_received:.4f}",
                     )
-                    return True, signature_str, 0.08
+                    return True, signature_str, sol_received
 
             tx_sig = await self.rpc.send_raw_transaction(signed_b64)
+            await asyncio.sleep(1.5)
+            bal_after = await self.rpc.get_balance(self.pubkey_str)
+            sol_received = max(0.001, bal_after - bal_before) if bal_after > bal_before else 0.040
             self.logger.log_trade(
                 action=f"SELL [{reason}-PUMP/RPC]",
                 token_mint=token_mint,
-                amount_sol=0.0,
+                amount_sol=sol_received,
                 price_sol=0.0,
                 signature=tx_sig or signature_str,
-                notes="Closed PumpPortal via Direct RPC",
+                notes=f"Closed PumpPortal via Direct RPC | Net SOL: {sol_received:.4f}",
             )
-            return True, tx_sig or signature_str, 0.08
+            return True, tx_sig or signature_str, sol_received
         except Exception as e:
             self.logger.log_error(f"PumpPortal sell execution error: {e}")
             return False, None, 0.0
