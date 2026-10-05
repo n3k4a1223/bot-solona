@@ -151,7 +151,15 @@ class AsyncBotLogger:
             self._recent_logs.pop(0)
 
         # Print directly to console for real-time visibility
-        self.console.print(message)
+        try:
+            self.console.print(message)
+        except Exception:
+            try:
+                safe_msg = message.encode("ascii", errors="replace").decode("ascii")
+                sys.stdout.write(safe_msg + "\n")
+                sys.stdout.flush()
+            except Exception:
+                pass
 
     def print_banner(self) -> None:
         """Display stylish ASCII boot banner."""
