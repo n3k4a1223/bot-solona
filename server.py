@@ -142,13 +142,13 @@ async def handle_api_status(request: web.Request) -> web.Response:
         "status": "active",
         "network": "solana-mainnet",
         "strategy": {
-            "mode": "Micro-Capital Aggressive Scalp",
+            "mode": "1-Token Sequential 5s Sniper (100% TP Doubler)",
             "reserve_buffer_sol": 0.005,
             "min_inflow_percentile": 90.0,
-            "exit_engine": "2.0x ATR Trailing Stop + 50% Exhaustion Lock",
+            "exit_engine": "100% Take-Profit Target + ATR Trailing Ratchet",
         },
-        "target_wallet": "7zAUSFzM6KAZJ8x7QGqtMVT3K3JxYK2zATcUxyChs2H3",
-        "solscan_url": "https://solscan.io/account/7zAUSFzM6KAZJ8x7QGqtMVT3K3JxYK2zATcUxyChs2H3",
+        "target_wallet": "9DHC9BZKMEKpoKLLr7XgATc8gfpb8WeNBKaovbkDi3Bo",
+        "solscan_url": "https://solscan.io/account/9DHC9BZKMEKpoKLLr7XgATc8gfpb8WeNBKaovbkDi3Bo",
     })
 
 
