@@ -744,6 +744,9 @@ class TradingEngine:
                             if not mint or mint in self.active_positions or mint in self.monitored_pools:
                                 continue
 
+                            if c.get("complete") is True or c.get("raydium_pool"):
+                                continue
+
                             mc_sol = float(c.get("market_cap") or 28.0)
                             mc_usd = mc_sol * 125.0
                             if mc_usd < self.config.MIN_MARKET_CAP_USD or mc_usd > self.config.MAX_MARKET_CAP_USD:

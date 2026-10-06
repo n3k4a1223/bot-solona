@@ -91,7 +91,7 @@ class TradeExecutor:
             "denominatedInSol": "true",
             "slippage": slippage_percent,
             "priorityFee": 0.0005,
-            "pool": "pump" if token_mint.endswith("pump") else "auto",
+            "pool": "auto",
         }
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8.0)) as session:
@@ -178,7 +178,7 @@ class TradeExecutor:
             "denominatedInSol": "false",
             "slippage": slippage_percent,
             "priorityFee": 0.0005,
-            "pool": "pump" if token_mint.endswith("pump") else "auto",
+            "pool": "auto",
         }
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8.0)) as session:
