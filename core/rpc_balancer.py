@@ -305,6 +305,28 @@ class MultiRPCBalancer:
         except Exception:
             return []
 
+    async def get_token_balance(self, pubkey: str, mint: str) -> float:
+        """Fetch real SPL token balance for given owner and token mint."""
+        try:
+            res = await self.call(
+                "getTokenAccountsByOwner",
+                [
+                    pubkey,
+                    {"mint": mint},
+                    {"encoding": "jsonParsed"}
+                ]
+            )
+            if res and "value" in res:
+                for acc in res["value"]:
+                    info = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+                    token_amt = info.get("tokenAmount", {})
+                    ui_amt = token_amt.get("uiAmount")
+                    if ui_amt is not None and float(ui_amt) > 0:
+                        return float(ui_amt)
+        except Exception as e:
+            self.logger.log_warning(f"Error fetching token balance for {mint[:8]}: {e}")
+        return 0.0
+
     async def get_token_supply(self, mint: str) -> Optional[Dict[str, Any]]:
         """Fetch total token supply and decimals."""
         try:

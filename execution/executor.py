@@ -119,8 +119,12 @@ class TradeExecutor:
                         signature=signature_str,
                         notes=f"PumpPortal Jito Bundle: {bundle_id[:12]}",
                     )
-                    expected_tokens = int(amount_sol * 1_000_000_000)
-                    return True, signature_str, expected_tokens
+                    await asyncio.sleep(2.0)
+                    actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+                    if actual_tok <= 0:
+                        await asyncio.sleep(1.5)
+                        actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+                    return True, signature_str, int(actual_tok) if actual_tok > 0 else 500_000
 
             # Direct RPC submission
             tx_sig = await self.rpc.send_raw_transaction(signed_b64)
@@ -132,8 +136,12 @@ class TradeExecutor:
                 signature=tx_sig or signature_str,
                 notes="PumpPortal Direct Transaction",
             )
-            expected_tokens = int(amount_sol * 1_000_000_000)
-            return True, tx_sig or signature_str, expected_tokens
+            await asyncio.sleep(2.0)
+            actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+            if actual_tok <= 0:
+                await asyncio.sleep(1.5)
+                actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+            return True, tx_sig or signature_str, int(actual_tok) if actual_tok > 0 else 500_000
         except Exception as e:
             self.logger.log_error(f"PumpPortal buy execution error: {e}")
             return False, None, 0

@@ -328,7 +328,29 @@ class TradingEngine:
             )
 
             if success and tokens_acquired > 0:
-                price_sol = pool_data["price_sol"]
+                # Obtain true entry market price from DexScreener or fill ratio
+                entry_p = 0.0
+                try:
+                    import aiohttp
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3.0)) as session:
+                        async with session.get(
+                            f"https://api.dexscreener.com/latest/dex/tokens/{token_mint}",
+                            headers={"User-Agent": "Mozilla/5.0"}
+                        ) as r:
+                            if r.status == 200:
+                                d = await r.json()
+                                prs = d.get("pairs", [])
+                                if prs and prs[0].get("priceNative"):
+                                    entry_p = float(prs[0]["priceNative"])
+                except Exception:
+                    pass
+
+                if entry_p <= 0 and tokens_acquired > 0:
+                    entry_p = final_sol / float(tokens_acquired)
+                if entry_p <= 0:
+                    entry_p = pool_data.get("price_sol", 0.00000005)
+
+                price_sol = entry_p
                 initial_stop = price_sol * 0.65  # -35% hard stop baseline
 
                 pos = OpenPosition(

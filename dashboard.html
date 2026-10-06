@@ -188,27 +188,61 @@
     </div>
   </section>
 
-  <!-- Active Open Positions Monitor (2 Simultaneous Positions Max | $5 USD Each) -->
-  <section class="mb-4 sm:mb-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+  <!-- Active Open Positions Monitor (Dual-Slot Architecture: 2 Coins Simultaneously) -->
+  <section class="mb-6">
+    <div class="flex items-center justify-between mb-3 px-1">
       <div class="flex items-center gap-2">
-        <span class="w-3 h-3 rounded-full bg-cyan-400 live-pulse shadow-[0_0_10px_rgba(34,211,238,0.8)]"></span>
-        <h2 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-          <span>Active Trading Positions (کۆینە چالاکەکانی کڕین و فرۆشتن)</span>
-          <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-500/10 text-purple-400 border border-purple-500/20">
-            2 COINS DUAL MODE
-          </span>
+        <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 live-pulse"></div>
+        <h2 class="text-sm sm:text-base font-bold text-white tracking-wide">
+          پێگە کراوەکان لەناو جزدان (ACTIVE POSITIONS • REAL ON-CHAIN)
         </h2>
       </div>
-      <div class="text-[11px] font-mono text-slate-400">
-        Entry Size: <strong class="text-cyan-400">$5.00 Each</strong> &bull; Window: <strong class="text-emerald-400">$3k - $15k MC</strong> &bull; Exit: <strong class="text-amber-400">+100% Doubler ($10)</strong>
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-semibold">
+          2 SLOTS • $5.00 EACH
+        </span>
       </div>
     </div>
 
-    <!-- 2 Dynamic Position Slots Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-      <div id="pos-slot-1"></div>
-      <div id="pos-slot-2"></div>
+    <!-- 2 Dynamic Position Slots (Slot 1 & Slot 2) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="active-positions-container">
+      <!-- Slot 1 -->
+      <div id="pos-slot-1">
+        <div class="bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between min-h-[200px]">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono font-bold text-slate-300">⚪ پێگەی بەردەست #1 (SLOT READY)</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">5s SNIPER</span>
+          </div>
+          <div class="my-auto py-3 text-center">
+            <div class="text-2xl mb-1 opacity-90">⚡</div>
+            <div class="text-sm font-semibold text-slate-200">بۆتی پایتۆن لە کۆمپیوتەرەکەت چالاکە...</div>
+            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">چاوەڕوانی کۆینی نوێیە لە چرکەی ٥م (مارکێت کەپ $3,000 تا $15,000).</p>
+          </div>
+          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <span>بڕی کڕین: <strong class="text-white">$5.00</strong></span>
+            <span>ئامانج: <strong class="text-amber-400">+100% دوو هێندە ($10)</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slot 2 -->
+      <div id="pos-slot-2">
+        <div class="bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between min-h-[200px]">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono font-bold text-slate-300">⚪ پێگەی بەردەست #2 (SLOT READY)</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">5s SNIPER</span>
+          </div>
+          <div class="my-auto py-3 text-center">
+            <div class="text-2xl mb-1 opacity-90">⚡</div>
+            <div class="text-sm font-semibold text-slate-200">بۆتی پایتۆن لە کۆمپیوتەرەکەت چالاکە...</div>
+            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">ئامادەیە بۆ کڕینی دراوی دووەم بە بڕی $5.00 بە شێوەی سەربەخۆ.</p>
+          </div>
+          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <span>بڕی کڕین: <strong class="text-white">$5.00</strong></span>
+            <span>ئامانج: <strong class="text-amber-400">+100% دوو هێندە ($10)</strong></span>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -452,22 +486,8 @@
 
                                         <!-- Log Scroll Box with Touch Optimization -->
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] sm:text-xs space-y-2 h-64 sm:h-72 overflow-y-auto touch-scroll" id="log-container">
-          <div class="p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500 text-emerald-300 leading-relaxed font-bold">
-            [چالاکە ⚡] بۆتەکە بە خێرایی بەرز دەستیپێکرد بۆ کڕینی کۆینە تازەلیستەکان ($5.00 بۆ ٢ کۆینی هاوکات).
-          </div>
-          <div class="text-slate-300 leading-relaxed text-[11px]">
-            [یاساکانی کارکردنی خێرا 📋]:
-          </div>
-          <div class="text-slate-400 leading-relaxed text-[10px] pl-2 space-y-1">
-            <div>1️⃣ قەبارەی هەر کڕینێک: ڕێک <strong class="text-cyan-300">$5.00 دۆلار</strong> (پاراستنی 0.005 SOL بۆ کرێی غاز).</div>
-            <div>2️⃣ جۆری دراوەکان: تەنها کۆینەکانی تازە لیست دەکرێن لەسەر سۆلانا/پەمپ.فەن/ڕەیدیەم (بێ مەرجی وێبسایت).</div>
-            <div>3️⃣ کاتی کڕین: کڕین لە چرکەی ٥ـەم (5s Sniper Delay) بۆ پاراستن لە فێڵ و تەڵەی بۆتەکان.</div>
-            <div>4️⃣ مەودای مارکێت کەپ: تەنها لەنێوان <strong class="text-emerald-400">$3,000 بۆ $15,000 دۆلار</strong>.</div>
-            <div>5️⃣ ژمارەی پێگەکان: هاوکات دەتوانێت <strong class="text-purple-400">٢ کۆینی نوێ</strong> بکڕێت و لە پانێڵی سەرەوە بە نرخی ڕاستەوخۆ پیشانی بدات.</div>
-            <div>6️⃣ تارگێت: کاتێک هەر دراوێک گەیشتە <strong class="text-emerald-400">+100% فرۆشتنی تەواو ($5 &rarr; $10)</strong> دەکات، قازانج دەگەڕێتەوە جزدان و دەچێتە سەر کۆینی نوێتر.</div>
-          </div>
-          <div class="text-emerald-400/90 leading-relaxed text-[11px]">
-            [سەرمایە 💰] جزدانی سەرەکی: 9DHC9B...i3Bo | باڵانس: 0.4229 SOL (~$50.75 USD) پارێزراوە ✓
+          <div class="p-2 rounded bg-cyan-950/40 border border-cyan-800 text-cyan-300 font-bold">
+            [سەلمێنەری سەر بلۆکچەین ✓] تۆمارکەری مامەڵە ڕاستەقینەکانی جزدان بە ڕاستەوخۆ لە ڕێگەی Helius RPC دەخوێندرێتەوە.
           </div>
         </div>
       </div>
@@ -519,71 +539,26 @@
     </div>
   </div>
 
-            <!-- Ultra-Fast High-Frequency Solana Quantitative Engine (Dual-Position 2x $5) -->
+              <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboard Engine -->
   <script>
-    // 1. Core State & Configuration
+    // 1. Core On-Chain Configuration
     const WALLET_ADDR = '9DHC9BZKMEKpoKLLr7XgATc8gfpb8WeNBKaovbkDi3Bo';
     const RPC_ENDPOINTS = [
+      'https://mainnet.helius-rpc.com/?api-key=f854b62f-2612-4417-a131-28191ae072cb',
       'https://api.mainnet-beta.solana.com',
-      'https://solana-mainnet.rpc.extrnode.com',
       'https://rpc.ankr.com/solana'
     ];
     let currentRpcIdx = 0;
-    let baseWalletSol = 0.4229;
-    let realizedProfitSol = 0.0;
-    let solPriceUsd = 120.0;
-    let peakBalance = 0.4229;
+    let solPriceUsd = 125.0;
+    let realWalletSol = 0.38169;
     let knownTxSignatures = new Set();
-    let currentSlot = 453658660;
-
-    // Master Execution State (Starts ACTIVE for instant execution)
-    let isBotRunning = localStorage.getItem('solana_bot_active') !== 'false';
-
-    // 2 Concurrent Active Positions (Dual-Token Mode: Slot 1 & Slot 2)
-    let activePositions = [
-      {
-        active: true,
-        name: 'Chill Bull',
-        symbol: 'CHILLBULL',
-        mint: '8e27q11o51u84wG2k8iA4w3rQdJ1X35fA3c938oUpump',
-        mc: 6184,
-        entryPriceSol: 0.00000412,
-        currentPriceSol: 0.00000618,
-        pnlPct: 50.0,
-        investedUsd: 5.0,
-        targetUsd: 10.0,
-        entryTimestamp: Date.now() - 15000
-      },
-      {
-        active: true,
-        name: 'Blu Money',
-        symbol: 'BLU',
-        mint: 'EC7JXhzfSDe9oT3kL94q38oUpumpB92Kx',
-        mc: 4893,
-        entryPriceSol: 0.00000320,
-        currentPriceSol: 0.00000416,
-        pnlPct: 30.0,
-        investedUsd: 5.0,
-        targetUsd: 10.0,
-        entryTimestamp: Date.now() - 8000
-      }
-    ];
-
-    // Candidate newly listed fresh coins on Solana ($3k - $15k MC)
-    let freshNewListings = [
-      { name: 'Solar Apex', symbol: 'SAPEX', mint: '5xqHdpZi5SnjAi8dptLztGRyEfHFPUSsmoRuzpVopump', mc: 7420, price: 0.00000550 },
-      { name: 'Nova Pulse', symbol: 'NPULSE', mint: 'EWKyN7QHfJo4k94q38oUpumpB92KxL44v', mc: 8900, price: 0.00000620 },
-      { name: 'Cyber Wave', symbol: 'CWAVE', mint: '3sjJoPEcaMJ1fA3c938oUpumpk4L9vPpump', mc: 11450, price: 0.00000840 },
-      { name: 'Moon Rocket', symbol: 'MROCKET', mint: '2p3z911s51u84wG2k8iA4w3rQdJ1X35fA3c938oUpump', mc: 5600, price: 0.00000430 },
-      { name: 'Ring Me', symbol: 'RING', mint: '13oVJLhEyXjw4wG2k8iA4w3rQdJ1X35fA3c938oUpump', mc: 6750, price: 0.00000490 },
-      { name: 'Plague Shield', symbol: 'PLAGUE', mint: '3MQx1XzqEJra4wG2k8iA4w3rQdJ1X35fA3c938oUpump', mc: 9800, price: 0.00000710 }
-    ];
+    let isBotRunning = true;
 
     function getRpcUrl() {
       return RPC_ENDPOINTS[currentRpcIdx % RPC_ENDPOINTS.length];
     }
 
-    // UI Elements
+    // UI State controls
     const btnMaster = document.getElementById('btn-master-toggle');
     const btnMasterText = document.getElementById('btn-master-text');
     const btnMasterIcon = document.getElementById('btn-master-icon');
@@ -594,199 +569,23 @@
     const streamPulseDot = document.getElementById('stream-pulse-dot');
 
     function updateUiState() {
-      if (isBotRunning) {
-        // Active Running State
-        if (btnMaster) {
-          btnMaster.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30 border border-rose-400/40';
-        }
-        if (btnMasterText) btnMasterText.innerText = '⏹ STOP BOT (وەستاندن)';
-        if (btnMasterIcon) btnMasterIcon.className = 'w-2.5 h-2.5 rounded-full bg-rose-300 live-pulse';
-
-        if (badgeStatus) {
-          badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
-        }
-        if (badgeStatusText) badgeStatusText.innerText = '⚡ ULTRA DUAL SNIPER ACTIVE (چالاکە)';
-        if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 live-pulse inline-block';
-
-        if (btnStream) {
-          btnStream.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white border border-rose-400/40 transition-all active:scale-95 shadow-md shadow-rose-600/20';
-          btnStream.innerText = '⏹ STOP BOT';
-        }
-        if (streamPulseDot) streamPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse';
-      } else {
-        // Paused State
-        if (btnMaster) {
-          btnMaster.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400/40';
-        }
-        if (btnMasterText) btnMasterText.innerText = '▶ START SNIPER BOT';
-        if (btnMasterIcon) btnMasterIcon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-300 live-pulse';
-
-        if (badgeStatus) {
-          badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1.5';
-        }
-        if (badgeStatusText) badgeStatusText.innerText = 'PAUSED (وەستاوە)';
-        if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400 inline-block';
-
-        if (btnStream) {
-          btnStream.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 transition-all active:scale-95 shadow-md shadow-emerald-600/20';
-          btnStream.innerText = '▶ START BOT';
-        }
-        if (streamPulseDot) streamPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+      if (btnMaster) {
+        btnMaster.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40';
       }
-      renderActivePositionCards();
-    }
+      if (btnMasterText) btnMasterText.innerText = '● LIVE BOT ACTIVE (ڕاستەقینە)';
+      if (btnMasterIcon) btnMasterIcon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-300 live-pulse';
 
-    function toggleBotState() {
-      isBotRunning = !isBotRunning;
-      localStorage.setItem('solana_bot_active', isBotRunning ? 'true' : 'false');
-      updateUiState();
-
-      if (isBotRunning) {
-        appendLog('<div class="p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500 text-emerald-300 font-bold leading-relaxed">[دەستپێکردن 🚀] بۆتەکە بە خێرایی بەرز دەستیپێکرد! کڕینی کۆینە تازەلیستەکان بۆ ٢ پێگەی کراوە ($5 هەریەکێکیان)...</div>');
-        appendLog('<div class="text-cyan-300 text-[11px] leading-relaxed">[مەرجەکان 📋] قەبارە: $5.00 | مارکێت کەپ $3,000-$15,000 | کڕین لە چرکەی ٥م | دژە-کۆپی پارێزراو | تارگێتی فرۆشتن: +100% دوو هێندە ($5 &rarr; $10).</div>');
-      } else {
-        appendLog('<div class="p-2.5 rounded-lg bg-rose-950/80 border border-rose-500 text-rose-300 font-bold leading-relaxed">[وەستاندن ⏹] بۆتەکە ڕاگیرا (PAUSED).</div>');
+      if (badgeStatus) {
+        badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
       }
-    }
+      if (badgeStatusText) badgeStatusText.innerText = '⚡ ON-CHAIN MAINNET ACTIVE (چالاکە)';
+      if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 live-pulse inline-block';
 
-    if (btnMaster) btnMaster.addEventListener('click', toggleBotState);
-    if (btnStream) btnStream.addEventListener('click', toggleBotState);
-
-    // 2. Render Active Positions (Visible Coin Monitor for Slot 1 and Slot 2)
-    function renderActivePositionCards() {
-      for (let i = 0; i < 2; i++) {
-        const slotEl = document.getElementById(`pos-slot-${i + 1}`);
-        if (!slotEl) continue;
-
-        const pos = activePositions[i];
-        if (pos.active) {
-          const shortMint = pos.mint.slice(0, 6) + '...' + pos.mint.slice(-6);
-          const pnlColor = pos.pnlPct >= 0 ? 'text-emerald-400' : 'text-rose-400';
-          const pnlSign = pos.pnlPct >= 0 ? '+' : '';
-          const currentValUsd = (pos.investedUsd * (1 + pos.pnlPct / 100)).toFixed(2);
-          const currentPriceFormatted = pos.currentPriceSol.toFixed(8);
-          const progressWidth = Math.min(100, Math.max(10, pos.pnlPct));
-
-          slotEl.innerHTML = `
-            <div class="bg-slate-900 border border-slate-700/80 rounded-2xl p-4 sm:p-5 shadow-2xl relative overflow-hidden transition-all duration-300 hover:border-cyan-500/50">
-              <div class="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-bl-full pointer-events-none"></div>
-
-              <!-- Slot Header -->
-              <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div class="flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse"></span>
-                  <span class="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
-                    🟢 کۆینی چالاک #${i + 1} (OPEN POSITION)
-                  </span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                    SNIPED @ 5.0s
-                  </span>
-                  <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                    PUMP.FUN
-                  </span>
-                </div>
-              </div>
-
-              <!-- Token Identity -->
-              <div class="pt-3 pb-2.5 flex items-start justify-between gap-3">
-                <div>
-                  <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-1.5">
-                    <span>${pos.name}</span>
-                    <span class="text-cyan-400 text-xs sm:text-sm font-mono font-normal">(${pos.symbol})</span>
-                  </h3>
-                  <div class="flex items-center gap-2 mt-1">
-                    <code class="font-mono text-[11px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 select-all">
-                      ${shortMint}
-                    </code>
-                    <a href="https://dexscreener.com/solana/${pos.mint}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-cyan-400 hover:text-cyan-300 underline font-semibold">
-                      Chart ↗
-                    </a>
-                    <a href="https://solscan.io/token/${pos.mint}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-slate-400 hover:text-slate-300 underline">
-                      Solscan ↗
-                    </a>
-                  </div>
-                </div>
-
-                <!-- Live PnL Box -->
-                <div class="text-right">
-                  <div class="text-[10px] text-slate-400 uppercase tracking-wider">Live PnL</div>
-                  <div class="font-mono font-bold text-base sm:text-xl ${pnlColor} flex items-center justify-end gap-1">
-                    <span>${pnlSign}${pos.pnlPct.toFixed(1)}%</span>
-                  </div>
-                  <div class="text-[10px] font-mono text-emerald-300 font-bold">
-                    $${currentValUsd} USD
-                  </div>
-                </div>
-              </div>
-
-              <!-- Financial Metrics Grid -->
-              <div class="grid grid-cols-4 gap-2 py-2 bg-slate-950/80 rounded-xl px-2.5 border border-slate-800/80 my-2 text-center text-xs">
-                <div>
-                  <div class="text-[9px] text-slate-400">Entry Size</div>
-                  <div class="font-mono font-bold text-cyan-300 mt-0.5">$${pos.investedUsd.toFixed(2)}</div>
-                </div>
-                <div>
-                  <div class="text-[9px] text-slate-400">Market Cap</div>
-                  <div class="font-mono font-bold text-emerald-400 mt-0.5">$${pos.mc.toLocaleString()}</div>
-                </div>
-                <div>
-                  <div class="text-[9px] text-slate-400">Live Price</div>
-                  <div class="font-mono font-bold text-slate-200 mt-0.5 text-[10px] truncate">${currentPriceFormatted}</div>
-                </div>
-                <div>
-                  <div class="text-[9px] text-slate-400">Target (2x)</div>
-                  <div class="font-mono font-bold text-amber-400 mt-0.5">$${pos.targetUsd.toFixed(2)} (+100%)</div>
-                </div>
-              </div>
-
-              <!-- +100% Doubler Progress Bar -->
-              <div class="mt-2">
-                <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
-                  <span>Take-Profit Target (+100% Doubler):</span>
-                  <span class="text-amber-300 font-bold">${pos.pnlPct.toFixed(1)}% / 100.0%</span>
-                </div>
-                <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
-                  <div class="bg-gradient-to-r from-cyan-500 via-emerald-400 to-amber-400 h-full transition-all duration-300" style="width: ${progressWidth}%"></div>
-                </div>
-              </div>
-            </div>
-          `;
-        } else {
-          // Empty Available Slot
-          slotEl.innerHTML = `
-            <div class="bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between min-h-[220px] transition-all hover:border-slate-700">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full ${isBotRunning ? 'bg-amber-400 live-pulse' : 'bg-slate-600'}"></span>
-                  <span class="text-xs font-mono font-bold uppercase tracking-wider text-slate-400">
-                    ⚪ پێگەی بەتاڵ #${i + 1} (EMPTY SLOT)
-                  </span>
-                </div>
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400">
-                  SLOT READY
-                </span>
-              </div>
-
-              <div class="my-auto py-4 text-center">
-                <div class="text-2xl mb-1.5 opacity-80">${isBotRunning ? '⚡' : '⏸'}</div>
-                <div class="text-sm font-semibold text-slate-300">
-                  ${isBotRunning ? `کڕینی خێرا بۆ کۆینی نوێ (#${i + 1})...` : `بۆت لەسەر باری وەستانە`}
-                </div>
-                <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                  ${isBotRunning ? `گەڕانی خێرا بۆ کۆینی تازەلیست لەنێوان $3,000 تا $15,000 بۆ کڕین بە $5.` : `کلیک لە [START SNIPER BOT] بکە بۆ دەستپێکردن.`}
-                </p>
-              </div>
-
-              <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-500">
-                <span>Allocated Size: <strong class="text-slate-400">$5.00</strong></span>
-                <span>Auto-Sniper: <strong class="text-slate-400">5.0s Delay</strong></span>
-              </div>
-            </div>
-          `;
-        }
+      if (btnStream) {
+        btnStream.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white border border-emerald-400/40';
+        btnStream.innerText = '● MAINNET RUNNING';
       }
+      if (streamPulseDot) streamPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse';
     }
 
     // Copy wallet functionality
@@ -803,20 +602,7 @@
       });
     }
 
-    function appendLog(htmlMsg) {
-      const container = document.getElementById('log-container');
-      if (!container) return;
-      const el = document.createElement('div');
-      el.className = 'leading-relaxed text-[11px] font-mono transition-opacity duration-300';
-      el.innerHTML = htmlMsg;
-      container.appendChild(el);
-      while (container.children.length > 70) {
-        container.removeChild(container.firstChild);
-      }
-      container.scrollTop = container.scrollHeight;
-    }
-
-    // 3. Live Price & Wallet Updates
+    // 2. Fetch Live SOL Price
     async function updateSolPrice() {
       try {
         const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
@@ -835,7 +621,8 @@
       }
     }
 
-    async function updateSolanaBalance() {
+    // 3. Fetch Real Liquid SOL Balance from Solana Mainnet
+    async function updateRealSolBalance() {
       const startMs = performance.now();
       const rpcUrl = getRpcUrl();
 
@@ -845,13 +632,13 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             jsonrpc: '2.0',
-            id: Date.now(),
+            id: 1,
             method: 'getBalance',
             params: [WALLET_ADDR, { commitment: 'confirmed' }]
           })
         });
 
-        const latency = Math.max(80, Math.round(performance.now() - startMs));
+        const latency = Math.max(40, Math.round(performance.now() - startMs));
         const latEl = document.getElementById('stat-latency');
         if (latEl) latEl.innerText = `${latency}ms`;
 
@@ -859,96 +646,261 @@
           const balData = await balReq.json();
           if (balData.result && typeof balData.result.value === 'number') {
             const lamports = balData.result.value;
-            baseWalletSol = lamports / 1e9;
+            realWalletSol = lamports / 1e9;
           }
         }
       } catch (err) {
         currentRpcIdx++;
       }
 
-      // Display balance including realized profit
-      const totalDisplaySol = baseWalletSol + realizedProfitSol;
-      if (totalDisplaySol > peakBalance) peakBalance = totalDisplaySol;
-
-      const usdVal = (totalDisplaySol * solPriceUsd).toFixed(2);
+      const usdVal = (realWalletSol * solPriceUsd).toFixed(2);
       const balSolEl = document.getElementById('card-balance-sol');
-      if (balSolEl) balSolEl.innerText = `${totalDisplaySol.toFixed(4)} SOL`;
+      if (balSolEl) balSolEl.innerText = `${realWalletSol.toFixed(4)} SOL`;
       const balUsdEl = document.getElementById('card-balance-usd');
       if (balUsdEl) balUsdEl.innerText = `($${usdVal} USD)`;
 
       const mobileBal = document.getElementById('mobile-sticky-balance');
-      if (mobileBal) mobileBal.innerText = `${totalDisplaySol.toFixed(4)} SOL ($${usdVal})`;
+      if (mobileBal) mobileBal.innerText = `${realWalletSol.toFixed(4)} SOL ($${usdVal})`;
 
       const peakEl = document.getElementById('card-peak');
-      if (peakEl) peakEl.innerText = `${peakBalance.toFixed(4)} SOL`;
+      if (peakEl) peakEl.innerText = `${realWalletSol.toFixed(4)} SOL`;
 
       const subEl = document.getElementById('card-balance-sub');
       if (subEl) {
-        subEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse inline-block"></span><span class="text-emerald-400 font-semibold">Live Mainnet (${totalDisplaySol.toFixed(4)} SOL &bull; 2x $5 Active Slots)</span>`;
+        subEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse inline-block"></span><span class="text-emerald-400 font-semibold">100% Real On-Chain Mainnet Balance</span>`;
       }
     }
 
-    // 4. Ultra-Fast High-Frequency Dual Sniper Trading Engine (1.2s cycles)
-    let cycleCounter = 0;
-    function runUltraFastDualSniperLoop() {
-      if (!isBotRunning) return; // Completely idle while PAUSED
+    // 4. Fetch Real SPL Token Holdings from Solana Blockchain
+    async function updateRealTokenHoldings() {
+      const rpcUrl = getRpcUrl();
+      try {
+        const res = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'getTokenAccountsByOwner',
+            params: [
+              WALLET_ADDR,
+              { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+              { encoding: 'jsonParsed' }
+            ]
+          })
+        });
 
-      cycleCounter++;
+        if (res.ok) {
+          const data = await res.json();
+          const accounts = (data.result && data.result.value) || [];
+          const activeTokens = [];
 
-      // A. Check and update active positions PnL and trigger +100% Take-Profit
-      activePositions.forEach((pos, idx) => {
-        if (pos.active) {
-          // Dynamic PnL advance
-          pos.pnlPct += (Math.random() * 15 + 10);
-          pos.currentPriceSol = pos.entryPriceSol * (1 + pos.pnlPct / 100);
+          for (const acc of accounts) {
+            const info = acc.account?.data?.parsed?.info;
+            if (info) {
+              const uiAmt = info.tokenAmount?.uiAmount;
+              if (uiAmt && uiAmt > 0) {
+                activeTokens.push({
+                  mint: info.mint,
+                  amount: uiAmt
+                });
+              }
+            }
+          }
 
-          // Check for +100% TAKE-PROFIT Exit ($5.00 -> $10.00 USD)
-          if (pos.pnlPct >= 100.0) {
-            const profitSol = (5.0 / solPriceUsd);
-            realizedProfitSol += profitSol;
+          renderRealTokenCards(activeTokens);
+        }
+      } catch (e) {
+        console.error('Error fetching token accounts:', e);
+      }
+    }
 
-            appendLog(`[فرۆشتن 🚀] <strong class="text-emerald-400 font-bold">+100% DOUBLER HIT!</strong> کۆینی <strong class="text-white">${pos.name} (${pos.symbol})</strong> بە تەواوی فرۆشرا ($5.00 &rarr; $10.00 USD). قازانجی +$5.00 خرایە سەر باڵانسی جزدان.`);
-            
-            // Mark position closed, open slot for next coin
-            pos.active = false;
-            pos.pnlPct = 0;
+    // Render Slots with True On-Chain Status
+    async function renderRealTokenCards(activeTokens) {
+      for (let i = 0; i < 2; i++) {
+        const slotEl = document.getElementById(`pos-slot-${i + 1}`);
+        if (!slotEl) continue;
+
+        if (i < activeTokens.length) {
+          const tok = activeTokens[i];
+          const shortMint = tok.mint.slice(0, 6) + '...' + tok.mint.slice(-6);
+
+          let tokenName = 'Solana Token';
+          let tokenSymbol = shortMint;
+          let priceUsd = '0.00';
+          let mcUsd = '0';
+          try {
+            const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tok.mint}`);
+            if (dexRes.ok) {
+              const dexData = await dexRes.json();
+              const pair = dexData.pairs?.[0];
+              if (pair) {
+                tokenName = pair.baseToken?.name || tokenName;
+                tokenSymbol = pair.baseToken?.symbol || tokenSymbol;
+                priceUsd = pair.priceUsd || priceUsd;
+                mcUsd = pair.marketCap ? Number(pair.marketCap).toLocaleString() : 'N/A';
+              }
+            }
+          } catch (err) {}
+
+          slotEl.innerHTML = `
+            <div class="bg-slate-900 border border-emerald-500/60 rounded-2xl p-4 sm:p-5 shadow-2xl relative overflow-hidden transition-all duration-300">
+              <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse"></span>
+                  <span class="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
+                    🟢 کۆینی ڕاستەقینە لە جزداندا #${i + 1} (ON-CHAIN ACTIVE)
+                  </span>
+                </div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  REAL HOLDING ✓
+                </span>
+              </div>
+
+              <div class="pt-3 pb-2.5 flex items-start justify-between gap-3">
+                <div>
+                  <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-1.5">
+                    <span>${tokenName}</span>
+                    <span class="text-cyan-400 text-xs sm:text-sm font-mono font-normal">(${tokenSymbol})</span>
+                  </h3>
+                  <div class="flex items-center gap-2 mt-1">
+                    <code class="font-mono text-[11px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 select-all">
+                      ${shortMint}
+                    </code>
+                    <a href="https://dexscreener.com/solana/${tok.mint}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-cyan-400 hover:text-cyan-300 underline font-semibold">
+                      DexScreener ↗
+                    </a>
+                    <a href="https://solscan.io/token/${tok.mint}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-slate-400 hover:text-slate-300 underline">
+                      Solscan ↗
+                    </a>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-[10px] text-slate-400 uppercase tracking-wider">Holding Balance</div>
+                  <div class="font-mono font-bold text-base sm:text-lg text-emerald-400">
+                    ${Number(tok.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </div>
+                  <div class="text-[10px] font-mono text-slate-400">
+                    Price: $${priceUsd}
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2 py-2 bg-slate-950/80 rounded-xl px-2.5 border border-slate-800/80 my-2 text-center text-xs">
+                <div>
+                  <div class="text-[9px] text-slate-400">Target</div>
+                  <div class="font-mono font-bold text-amber-400 mt-0.5">+100% Doubler</div>
+                </div>
+                <div>
+                  <div class="text-[9px] text-slate-400">Market Cap</div>
+                  <div class="font-mono font-bold text-slate-200 mt-0.5">$${mcUsd}</div>
+                </div>
+                <div>
+                  <div class="text-[9px] text-slate-400">Status</div>
+                  <div class="font-mono font-bold text-emerald-400 mt-0.5">Monitoring Exit</div>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          slotEl.innerHTML = `
+            <div class="bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between min-h-[200px] transition-all hover:border-slate-700">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse"></span>
+                  <span class="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                    ⚪ پێگەی بەردەست #${i + 1} (READY FOR SNIPE)
+                  </span>
+                </div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                  5s SNIPER ARMED
+                </span>
+              </div>
+
+              <div class="my-auto py-3 text-center">
+                <div class="text-2xl mb-1 opacity-90">⚡</div>
+                <div class="text-sm font-semibold text-slate-200">
+                  بۆتی پایتۆن چالاکە و لە چاوەڕوانی دراوی نوێدایە...
+                </div>
+                <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                  کڕینی $5.00 بۆ هەر دراوێکی تازەلیست ($3,000 تا $15,000 مارکێت کەپ) لە چرکەی ٥م بە فلتەری دژە-فەیک.
+                </p>
+              </div>
+
+              <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
+                <span>بڕی کڕین: <strong class="text-white">$5.00 (0.04 SOL)</strong></span>
+                <span>ئامانج: <strong class="text-amber-400">+100% دوو هێندە ($10)</strong></span>
+              </div>
+            </div>
+          `;
+        }
+      }
+    }
+
+    // 5. Fetch Real On-Chain Activity Log from Solana Blockchain (getSignaturesForAddress)
+    async function updateRealTransactionLedger() {
+      const rpcUrl = getRpcUrl();
+      try {
+        const res = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 3,
+            method: 'getSignaturesForAddress',
+            params: [WALLET_ADDR, { limit: 12 }]
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const sigs = data.result || [];
+          const container = document.getElementById('log-container');
+          if (!container) return;
+
+          for (const s of sigs) {
+            if (!knownTxSignatures.has(s.signature)) {
+              knownTxSignatures.add(s.signature);
+
+              const shortSig = s.signature.slice(0, 10) + '...' + s.signature.slice(-10);
+              const isSuccess = s.err === null;
+              const statusBadge = isSuccess 
+                ? '<span class="text-emerald-400 font-bold">✓ سەرکەوتوو (CONFIRMED)</span>' 
+                : '<span class="text-rose-400 font-bold">✗ هەڵە (FAILED)</span>';
+              
+              const timeStr = s.blockTime ? new Date(s.blockTime * 1000).toLocaleTimeString() : 'Recent';
+
+              const logEl = document.createElement('div');
+              logEl.className = 'leading-relaxed text-[11px] font-mono border-b border-slate-800/50 pb-1.5 pt-1';
+              logEl.innerHTML = `
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-slate-400">[${timeStr}]</span>
+                    <span class="text-cyan-300 font-bold">مامەڵەی ڕاستەقینە لەسەر سۆلانە:</span>
+                  </div>
+                  <div>${statusBadge}</div>
+                </div>
+                <div class="mt-0.5 flex items-center justify-between text-[10px] text-slate-400">
+                  <code>TX: ${shortSig}</code>
+                  <a href="https://solscan.io/tx/${s.signature}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 underline font-semibold">
+                    سەیرکردن لە Solscan ↗
+                  </a>
+                </div>
+              `;
+              container.prepend(logEl);
+            }
+          }
+
+          while (container.children.length > 50) {
+            container.removeChild(container.lastChild);
           }
         }
-      });
-
-      // B. If any slot is empty, immediately find and snipe a freshly listed coin ($3k-$15k MC)
-      const emptyIdx = activePositions.findIndex(p => !p.active);
-      if (emptyIdx !== -1) {
-        const cand = freshNewListings[cycleCounter % freshNewListings.length];
-        const step = cycleCounter % 2;
-
-        if (step === 1) {
-          appendLog(`[کۆینی نوێ 🔍] <span class="text-purple-400">تازەلیست دۆزرایەوە:</span> <strong class="text-cyan-300">${cand.name} (${cand.symbol})</strong> | مارکێت کەپ: <strong class="text-emerald-400">$${cand.mc.toLocaleString()}</strong> (سنوری $3k-$15k ✓)`);
-        } else {
-          // 5s Sniper Buy Execution!
-          const slot = activePositions[emptyIdx];
-          slot.active = true;
-          slot.name = cand.name;
-          slot.symbol = cand.symbol;
-          slot.mint = cand.mint;
-          slot.mc = cand.mc;
-          slot.entryPriceSol = cand.price;
-          slot.currentPriceSol = cand.price;
-          slot.pnlPct = 12.0;
-          slot.investedUsd = 5.0;
-          slot.targetUsd = 10.0;
-          slot.entryTimestamp = Date.now();
-
-          const solQty = (5.0 / solPriceUsd).toFixed(4);
-          appendLog(`[کڕین 💰] <strong class="text-emerald-400 font-bold">کڕین ئەنجامدرا ($5.00):</strong> کۆینی نوێ <strong class="text-white">${cand.name} (${cand.symbol})</strong> کڕدرا لە پێگەی #${emptyIdx + 1} بە بڕی ${solQty} SOL. لە چرکەی ٥م. ئامانج: +100% فرۆشتنی تەواو ($10).`);
-        }
+      } catch (e) {
+        console.error('Error fetching on-chain transactions:', e);
       }
-
-      renderActivePositionCards();
-      updateSolanaBalance();
     }
 
-    // 5. Interactive Trailing Stop & 100% Doubler Chart ($5 -> $10)
+    // 6. Interactive Trailing Stop & 100% Doubler Chart ($5 -> $10)
     const canvas = document.getElementById('trailing-canvas');
     const ctx = canvas ? canvas.getContext('2d') : null;
 
@@ -1080,25 +1032,27 @@
     window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 150));
     setTimeout(resizeCanvas, 50);
 
-    // Clear logs
+    // Clear logs button
     const btnClear = document.getElementById('btn-clear-logs');
     if (btnClear) {
       btnClear.addEventListener('click', () => {
         const c = document.getElementById('log-container');
-        if (c) c.innerHTML = '<div class="text-slate-500">[سڕینەوە ✓] تێرمیناڵ پاککرایەوە. کڕین و فرۆشتنی خێرا چالاکە ($5 بۆ هەر دراوێک، ٢ پێگەی کراوە)...</div>';
+        if (c) c.innerHTML = '<div class="text-slate-500">[سڕینەوە ✓] تێرمیناڵ پاککرایەوە...</div>';
       });
     }
 
-    // Initialize timers & UI
+    // Initialize telemetry loops
     updateUiState();
-    renderActivePositionCards();
     updateSolPrice();
-    updateSolanaBalance();
+    updateRealSolBalance();
+    updateRealTokenHoldings();
+    updateRealTransactionLedger();
 
+    // Poll live on-chain status every 4 seconds
     setInterval(updateSolPrice, 15000);
-    setInterval(updateSolanaBalance, 3000);
-    setInterval(runUltraFastDualSniperLoop, 1200); // 1.2s High Frequency Cycle
+    setInterval(updateRealSolBalance, 4000);
+    setInterval(updateRealTokenHoldings, 4000);
+    setInterval(updateRealTransactionLedger, 4000);
   </script>
-
 </body>
 </html>
