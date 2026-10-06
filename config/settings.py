@@ -87,8 +87,8 @@ class BotConfig(BaseSettings):
         description="Jupiter Swap API v1 base URL.",
     )
     MAX_SLIPPAGE_BPS: int = Field(
-        default=250,
-        description="Maximum allowable slippage in basis points (250 bps = 2.5%). Dynamically tightened on low volatility.",
+        default=500,
+        description="Maximum allowable slippage in basis points (500 bps = 5.0% for fast guaranteed fills).",
     )
     USE_JITO_MEV: bool = Field(
         default=True,
@@ -159,24 +159,24 @@ class BotConfig(BaseSettings):
         description="Maximum concurrent open positions. Set to 2 concurrent positions (2 coins opened simultaneously).",
     )
     SNIPER_DELAY_SECONDS: float = Field(
-        default=5.0,
-        description="Sniper execution delay in seconds after pool launch (exactly 5s mark sniper).",
+        default=0.0,
+        description="Sniper execution delay in seconds (0.0s for instant entry).",
     )
     TARGET_TAKE_PROFIT_PCT: float = Field(
-        default=100.0,
-        description="Target profit percentage to trigger 100% full exit (e.g. 100% = 2x gain, $5 -> $10).",
+        default=900.0,
+        description="Target profit percentage to trigger 100% full exit (e.g. 900% = 10x gain, $5 -> $50).",
     )
     TARGET_BUY_USD: float = Field(
         default=5.0,
         description="Fixed entry trade size in USD ($5.00 per trade).",
     )
     MIN_MARKET_CAP_USD: float = Field(
-        default=25000.0,
-        description="Minimum market cap in USD to qualify for strong token buy ($25,000).",
+        default=3000.0,
+        description="Minimum market cap in USD to qualify for token buy ($3,000).",
     )
     MAX_MARKET_CAP_USD: float = Field(
         default=500000.0,
-        description="Maximum market cap in USD to qualify for strong token buy ($500,000).",
+        description="Maximum market cap in USD to qualify for token buy ($500,000).",
     )
     REQUIRE_MATCHING_WEBSITE: bool = Field(
         default=False,
@@ -207,8 +207,8 @@ class BotConfig(BaseSettings):
         description="Rolling window in seconds to compute retail buyer velocity and order flow delta.",
     )
     MIN_UNIQUE_BUYERS_3M: int = Field(
-        default=15,
-        description="Minimum 15 unique trader wallets/buyers before buy entry is approved.",
+        default=1,
+        description="Minimum unique trader wallets/buyers before buy entry is approved (1 allows instant entry).",
     )
     BUY_VELOCITY_WEIGHT: float = Field(
         default=1.25,
@@ -231,8 +231,8 @@ class BotConfig(BaseSettings):
         description="Consecutive intervals of sell-volume delta exceeding buy-volume before scaling out.",
     )
     STAGNATION_TIMEOUT_SECONDS_BASE: int = Field(
-        default=20,
-        description="Strict 20-second timeout: directly sell off token if no 2x X reached within 20s.",
+        default=60,
+        description="Stagnation timeout in seconds to reclaim capital if token stays flat.",
     )
     MIN_VOLUME_MULTIPLIER_BASELINE: float = Field(
         default=2.0,

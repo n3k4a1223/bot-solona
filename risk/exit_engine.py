@@ -63,14 +63,14 @@ class DynamicExitEngine:
         pnl_pct = position.unrealized_pnl_pct
 
         # ---------------------------------------------------------------------
-        # 0. Master Take-Profit Target: +100% Gain (2x Capital Doubler)
-        # Sells 100% immediately to rotate compounded capital into next token!
+        # 0. Master Take-Profit Target: 10x Moonshot (+900% / +1000% Gain)
+        # Sells 100% immediately to lock 10x profits!
         # ---------------------------------------------------------------------
         if pnl_pct >= self.target_take_profit_pct or current_price_sol >= (position.entry_price_sol * (1.0 + self.target_take_profit_pct / 100.0)):
             reason = (
-                f"🎯 TARGET DOUBLED (+{pnl_pct:.1f}% >= +{self.target_take_profit_pct:.1f}%)! "
-                f"Capital doubled from {position.sol_invested:.4f} SOL. "
-                f"Selling 100% of tokens to rotate compounded SOL into the next token!"
+                f"🚀 10x MOONSHOT TARGET REACHED (+{pnl_pct:.1f}% >= +{self.target_take_profit_pct:.1f}%)! "
+                f"Capital multiplied 10x from {position.sol_invested:.4f} SOL. "
+                f"Selling 100% of tokens to lock 10x profits!"
             )
             return TradeAction.TAKE_PROFIT, reason, 1.0
 
@@ -83,13 +83,19 @@ class DynamicExitEngine:
         )
         calculated_stop = position.peak_price_sol - (self.atr_multiplier * vol_distance)
 
-        # Profit Protection Ratchets:
-        # If up > +25%, guarantee breakeven (stop cannot fall below entry price)
-        if pnl_pct >= 25.0:
-            calculated_stop = max(calculated_stop, position.entry_price_sol)
-        # If up > +50%, guarantee at least +25% profit lock
+        # Multi-Step Profit Protection Ratchets for 10x Moonshot:
+        # If up > +50%, guarantee breakeven (stop cannot fall below entry price)
         if pnl_pct >= 50.0:
-            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.25)
+            calculated_stop = max(calculated_stop, position.entry_price_sol)
+        # If up > +100% (2x), lock at least +50% profit
+        if pnl_pct >= 100.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.50)
+        # If up > +300% (4x), lock at least +200% profit
+        if pnl_pct >= 300.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol * 3.00)
+        # If up > +500% (6x), lock at least +400% profit
+        if pnl_pct >= 500.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol * 5.00)
 
         # Trailing stop can only ratchet UP, never down
         if calculated_stop > position.trailing_stop_price:
@@ -115,9 +121,7 @@ class DynamicExitEngine:
 
         # ---------------------------------------------------------------------
         # 2. Dynamic Profit Realization: Buyer Volume Exhaustion Scale-Out
-        # Scale out when Buy Volume < Sell Volume across consecutive intervals
         # ---------------------------------------------------------------------
-        # Evaluate order flow delta
         is_selling_dominant = (
             momentum.sell_volume_sol > momentum.buy_volume_sol
             and momentum.total_transactions >= 4
@@ -128,43 +132,30 @@ class DynamicExitEngine:
         else:
             position.consecutive_exhaustions = 0
 
-        # Trigger scale-out if exhaustion persists and position is in profit (> 6%)
+        # Trigger scale-out only after big run-up (> 200%) if exhaustion persists
         if (
             position.consecutive_exhaustions >= self.consecutive_exhaustion_intervals
-            and position.unrealized_pnl_pct >= 6.0
+            and position.unrealized_pnl_pct >= 200.0
         ):
             if position.scaled_out_count == 0:
-                # Step 1: Scale out 50% to lock gains, tighten stop to entry (breakeven protection)
                 position.scaled_out_count = 1
                 position.consecutive_exhaustions = 0
-                position.trailing_stop_price = max(position.trailing_stop_price, position.entry_price_sol)
+                position.trailing_stop_price = max(position.trailing_stop_price, position.entry_price_sol * 2.0)
                 reason = (
-                    f"Buyer Exhaustion Scale-Out (50%): Sell delta > Buy delta over 2 intervals. "
-                    f"Locking +{position.unrealized_pnl_pct:.1f}% gain and ratcheting stop to breakeven."
+                    f"Buyer Exhaustion Scale-Out (50%): Sell delta > Buy delta. "
+                    f"Locking +{position.unrealized_pnl_pct:.1f}% gain and ratcheting stop to 2x."
                 )
                 return TradeAction.SCALE_OUT, reason, 0.50
 
-            elif position.scaled_out_count == 1:
-                # Step 2: Final scale-out of remaining 50% on renewed exhaustion
-                reason = (
-                    f"Secondary Buyer Exhaustion (Final 50%): Momentum exhausted at "
-                    f"+{position.unrealized_pnl_pct:.1f}% PnL. Fully exiting position."
-                )
-                return TradeAction.SCALE_OUT, reason, 1.0
-
         # ---------------------------------------------------------------------
-        # 3. 20-Second Direct Stagnation Cut: Reclaim Idle Capital
-        # Directly exits after 20.0 seconds if no 2x X reached within 20s
+        # 3. Stagnation Timeout Cut: Reclaim Idle Capital
         # ---------------------------------------------------------------------
-        time_in_trade = now - position.entry_timestamp
-        if time_in_trade >= float(self.base_stagnation_seconds):
+        if time_in_trade >= float(self.base_stagnation_seconds) and pnl_pct < 20.0:
             reason = (
-                f"⏱️ 20-SECOND TIMEOUT CUT: No 2x X reached within {self.base_stagnation_seconds}s "
+                f"⏱️ STAGNATION TIMEOUT CUT: No momentum reached within {self.base_stagnation_seconds}s "
                 f"(Held: {time_in_trade:.1f}s | PnL: {pnl_pct:+.1f}%). "
                 f"Directly selling 100% to reclaim capital for the next coin!"
             )
             return TradeAction.STAGNATION_CUT, reason, 1.0
-
-        return TradeAction.HOLD, "Position within dynamic parameters", 0.0
 
         return TradeAction.HOLD, "Position within dynamic parameters", 0.0

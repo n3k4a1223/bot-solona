@@ -158,6 +158,10 @@ class TradingEngine:
         self.logger.liquid_balance_sol = self.wallet_liquid_sol
         self.logger.peak_equity_sol = self.wallet_liquid_sol
 
+        # 2b. Auto-discover existing on-chain wallet positions (SPL & Token-2022)
+        if not self.config.DRY_RUN:
+            await self._discover_and_register_wallet_positions()
+
         # 3. Start background supervision loops
         self._cluster_monitor_task = asyncio.create_task(self._cluster_telemetry_loop())
         self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
@@ -194,12 +198,92 @@ class TradingEngine:
         await self.rpc_balancer.close()
         self.logger.log_success("Trading Engine shutdown complete.")
 
+    async def _discover_and_register_wallet_positions(self) -> None:
+        """
+        Discovers existing SPL and Token-2022 token holdings in the wallet,
+        and registers active positions into active_positions for 10x exit tracking.
+        """
+        programs = [
+            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",  # Standard SPL
+            "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",  # Token-2022 (Pump.fun)
+        ]
+        pubkey = self.executor.pubkey_str
+        found_count = 0
+
+        for prog in programs:
+            try:
+                res = await self.rpc_balancer.call(
+                    "getTokenAccountsByOwner",
+                    [
+                        pubkey,
+                        {"programId": prog},
+                        {"encoding": "jsonParsed"}
+                    ]
+                )
+                if not res or "value" not in res:
+                    continue
+
+                for acc in res["value"]:
+                    info = acc.get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+                    mint = info.get("mint")
+                    token_amt = info.get("tokenAmount", {})
+                    ui_amt = token_amt.get("uiAmount")
+
+                    if not mint or mint == WSOL_MINT or ui_amt is None or float(ui_amt) <= 0:
+                        continue
+
+                    # Ignore dust spam (< 10 tokens)
+                    if float(ui_amt) < 10.0:
+                        continue
+
+                    if mint not in self.active_positions and len(self.active_positions) < self.config.MAX_ACTIVE_POSITIONS:
+                        entry_p = 0.00000005
+                        try:
+                            import aiohttp
+                            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2.5)) as session:
+                                async with session.get(
+                                    f"https://api.dexscreener.com/latest/dex/tokens/{mint}",
+                                    headers={"User-Agent": "Mozilla/5.0"}
+                                ) as r:
+                                    if r.status == 200:
+                                        d = await r.json()
+                                        prs = d.get("pairs") or []
+                                        if prs and prs[0].get("priceNative"):
+                                            entry_p = float(prs[0]["priceNative"])
+                        except Exception:
+                            pass
+
+                        pos = OpenPosition(
+                            token_mint=mint,
+                            pool_address=mint,
+                            pool_type=PoolType.PUMP_FUN if mint.endswith("pump") else PoolType.RAYDIUM_V4,
+                            entry_price_sol=entry_p,
+                            current_price_sol=entry_p,
+                            peak_price_sol=entry_p,
+                            tokens_amount=int(float(ui_amt)),
+                            sol_invested=0.04,  # $5.00 entry
+                            entry_timestamp=time.time(),
+                            trailing_stop_price=entry_p * 0.65,
+                        )
+                        self.active_positions[mint] = pos
+                        found_count += 1
+                        self.logger.log_success(
+                            f"🟢 [bold green]FOUND EXISTING ON-CHAIN POSITION:[/] "
+                            f"[bold cyan]{mint[:8]}...[/] | Balance: [bold white]{float(ui_amt):,.2f}[/] tokens | "
+                            f"Program: {'Token-2022' if 'Tokenz' in prog else 'SPL'} | "
+                            f"Registered into Active Slot {found_count}/{self.config.MAX_ACTIVE_POSITIONS} for 10x exit monitoring!"
+                        )
+            except Exception as e:
+                self.logger.log_warning(f"Error querying token accounts for {prog[:10]}: {e}")
+
+        self.logger.active_positions = self.active_positions
+
     async def handle_pool_detection(self, event: PoolDetectionEvent) -> None:
         """
-        Processes newly detected pools, executing multi-tier security audits
-        and triggering 5th-second sniper entry for approved setups.
+        Processes newly detected pools, executing security audits
+        and triggering ultra-fast sniper entry for approved setups.
         """
-        # Strict Sequential Single-Position Mode: Only 1 active token at a time
+        # Strict Dual-Position Mode: Up to 2 active tokens simultaneously
         if len(self.active_positions) >= self.config.MAX_ACTIVE_POSITIONS:
             return
 
@@ -222,10 +306,7 @@ class TradingEngine:
         if token_mint in self.active_positions or token_mint in self.monitored_pools:
             return
 
-        # ---------------------------------------------------------------------
-        # 5th-Second Sniper Timing: Wait until pool is exactly 5.0 seconds old
-        # Bypasses block 0/1 MEV sandwich bundles and anti-bot traps
-        # ---------------------------------------------------------------------
+        # Sniper execution delay (if configured > 0)
         now = time.time()
         detected_at = getattr(event, "detected_at", now)
         elapsed = now - detected_at
@@ -237,40 +318,27 @@ class TradingEngine:
         if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
             return
 
-        # ---------------------------------------------------------------------
-        # Verify 15+ Unique Traders / Transactions (Requirement: 15 traders)
-        # ---------------------------------------------------------------------
-        traders_count = 0
-        try:
-            import aiohttp
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2.5)) as session:
-                async with session.get(
-                    f"https://api.dexscreener.com/latest/dex/tokens/{token_mint}",
-                    headers={"User-Agent": "Mozilla/5.0"}
-                ) as r:
-                    if r.status == 200:
-                        d = await r.json()
-                        prs = d.get("pairs") or []
-                        if prs:
-                            txns = prs[0].get("txns", {})
-                            traders_count = int(txns.get("m5", {}).get("buys", 0) + txns.get("m5", {}).get("sells", 0))
-        except Exception:
-            pass
-
-        if traders_count < self.config.MIN_UNIQUE_BUYERS_3M:
+        # Verify traders count only if MIN_UNIQUE_BUYERS_3M > 1
+        if self.config.MIN_UNIQUE_BUYERS_3M > 1:
+            traders_count = 0
             try:
-                sigs = await self.rpc_balancer.call("getSignaturesForAddress", [token_mint, {"limit": 20}])
-                if isinstance(sigs, list):
-                    traders_count = max(traders_count, len(sigs))
+                import aiohttp
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2.0)) as session:
+                    async with session.get(
+                        f"https://api.dexscreener.com/latest/dex/tokens/{token_mint}",
+                        headers={"User-Agent": "Mozilla/5.0"}
+                    ) as r:
+                        if r.status == 200:
+                            d = await r.json()
+                            prs = d.get("pairs") or []
+                            if prs:
+                                txns = prs[0].get("txns", {})
+                                traders_count = int(txns.get("m5", {}).get("buys", 0) + txns.get("m5", {}).get("sells", 0))
             except Exception:
                 pass
 
-        if traders_count < self.config.MIN_UNIQUE_BUYERS_3M:
-            self.logger.log_info(
-                f"[bold yellow][WAITING 15 TRADERS][/] Token: [bold cyan]{token_mint[:8]}[/] "
-                f"only has {traders_count} traders (< {self.config.MIN_UNIQUE_BUYERS_3M} required). Skipping entry."
-            )
-            return
+            if traders_count < self.config.MIN_UNIQUE_BUYERS_3M:
+                return
 
         initial_sol = event.initial_sol_liquidity if event.initial_sol_liquidity > 0 else 35.0
         initial_tokens = 1_000_000_000.0 * 0.8  # 80% in pool
@@ -355,7 +423,7 @@ class TradingEngine:
                 f"ENTRY TRIGGERED for [bold cyan]{token_mint[:8]}[/]! "
                 f"Allocating: [bold white]{final_sol:.4f} SOL[/] (~${final_sol * sol_price:.2f} USD) | "
                 f"Active Slots: {len(self.active_positions) + 1}/{self.config.MAX_ACTIVE_POSITIONS} | "
-                f"Target: +{self.config.TARGET_TAKE_PROFIT_PCT:.0f}% Doubler ($5 -> $10)"
+                f"Target: +{self.config.TARGET_TAKE_PROFIT_PCT:.0f}% 10x Moonshot ($5 -> $50)"
             )
 
             # 5. Execute Buy Swap via PumpPortal / Jupiter & Jito MEV
@@ -487,11 +555,11 @@ class TradingEngine:
                                 del self.active_positions[token_mint]
                                 if action == TradeAction.TAKE_PROFIT:
                                     self.logger.log_success(
-                                        f"🚀 [bold green]100% PROFIT TARGET REALIZED (2x DOUBLED)![/] "
+                                        f"🚀 [bold green]10x MOONSHOT TARGET REALIZED (+{self.config.TARGET_TAKE_PROFIT_PCT:.0f}%)![/] "
                                         f"Token: [bold cyan]{token_mint[:8]}[/] | Returned: [bold white]{sol_back:.4f} SOL[/] "
                                         f"(Net Profit: [bold green]+{pos.realized_pnl_sol:+.4f} SOL[/]). "
                                         f"Compounded capital added to wallet balance ({self.wallet_liquid_sol:.4f} SOL). "
-                                        f"Now scanning for the NEXT token to snipe at the 5th second!"
+                                        f"Now scanning for the NEXT token to snipe!"
                                     )
                                 else:
                                     self.logger.log_success(
@@ -597,14 +665,14 @@ class TradingEngine:
                                     if mc < self.config.MIN_MARKET_CAP_USD or mc > self.config.MAX_MARKET_CAP_USD:
                                         continue
 
-                                    # Check minimum 15 traders
-                                    txns = p.get("txns", {})
-                                    traders = int(txns.get("m5", {}).get("buys", 0) + txns.get("m5", {}).get("sells", 0))
-                                    if traders < self.config.MIN_UNIQUE_BUYERS_3M:
-                                        continue
+                                    if self.config.MIN_UNIQUE_BUYERS_3M > 1:
+                                        txns = p.get("txns", {})
+                                        traders = int(txns.get("m5", {}).get("buys", 0) + txns.get("m5", {}).get("sells", 0))
+                                        if traders < self.config.MIN_UNIQUE_BUYERS_3M:
+                                            continue
 
                                     liq_usd = float(p.get("liquidity", {}).get("usd", 0) or 0)
-                                    if liq_usd < 3000.0:
+                                    if liq_usd < 1000.0:
                                         continue
 
                                     liq_sol = liq_usd / 125.0 if liq_usd > 0 else 24.0
