@@ -130,6 +130,7 @@ class TradingEngine:
         self._position_monitor_task: Optional[asyncio.Task] = None
         self._cluster_monitor_task: Optional[asyncio.Task] = None
         self._dex_market_scanner_task: Optional[asyncio.Task] = None
+        self._pumpportal_ws_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         """Starts all background services and trading loops."""
@@ -161,6 +162,7 @@ class TradingEngine:
         self._cluster_monitor_task = asyncio.create_task(self._cluster_telemetry_loop())
         self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
         self._dex_market_scanner_task = asyncio.create_task(self._dex_market_scanner_loop())
+        self._pumpportal_ws_task = asyncio.create_task(self._pumpportal_ws_stream_loop())
 
         # 4. Start WebSocket Stream
         self.logger.log_info("Starting WebSocket DEX Log Listener...")
@@ -174,6 +176,9 @@ class TradingEngine:
 
         if self.ws_listener:
             await self.ws_listener.stop()
+
+        if self._pumpportal_ws_task and not self._pumpportal_ws_task.done():
+            self._pumpportal_ws_task.cancel()
 
         if self._dex_market_scanner_task and not self._dex_market_scanner_task.done():
             self._dex_market_scanner_task.cancel()
@@ -577,5 +582,58 @@ class TradingEngine:
                 break
             except Exception as e:
                 self.logger.log_debug(f"DexScreener scanner loop notice: {e}")
+                await asyncio.sleep(2.0)
+
+    async def _pumpportal_ws_stream_loop(self) -> None:
+        """
+        Connects directly to PumpPortal real-time WebSocket to receive newly listed Pump.fun tokens
+        within milliseconds of creation on Solana ($3k - $15k MC).
+        """
+        import json
+        import websockets
+
+        uri = "wss://pumpportal.fun/api/data"
+        while self._running:
+            try:
+                async with websockets.connect(uri, ping_interval=20, ping_timeout=10) as ws:
+                    await ws.send(json.dumps({"method": "subscribeNewToken"}))
+                    self.logger.log_success("Connected to PumpPortal Real-Time New Token Stream!")
+                    async for raw in ws:
+                        if not self._running:
+                            break
+                        try:
+                            data = json.loads(raw)
+                            mint = data.get("mint")
+                            if not mint:
+                                continue
+                            mc_sol = float(data.get("marketCapSol") or 28.0)
+                            mc_usd = mc_sol * 125.0
+                            if mc_usd < self.config.MIN_MARKET_CAP_USD or mc_usd > self.config.MAX_MARKET_CAP_USD:
+                                continue
+
+                            name = data.get("name", "PumpGem")
+                            symbol = data.get("symbol", "PUMP")
+                            self.logger.log_info(
+                                f"[bold cyan][PUMP.FUN LIVE LISTING][/] New Token: {name} ({symbol}) | "
+                                f"Mint: {mint[:8]}... | MC: ${mc_usd:,.0f} ({mc_sol:.1f} SOL)"
+                            )
+
+                            event = PoolDetectionEvent(
+                                pool_address=mint,
+                                token_mint=mint,
+                                base_mint=WSOL_MINT,
+                                quote_mint="",
+                                pool_type=PoolType.PUMP_FUN,
+                                initial_sol_liquidity=mc_sol,
+                                signature=mint[:16],
+                                detected_at=time.time(),
+                            )
+                            asyncio.create_task(self.handle_pool_detection(event))
+                        except Exception:
+                            continue
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.log_debug(f"PumpPortal WS reconnecting: {e}")
                 await asyncio.sleep(2.0)
 

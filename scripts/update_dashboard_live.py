@@ -105,25 +105,66 @@ JS_ENGINE_CODE = r'''  <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboa
     const btnStream = document.getElementById('btn-stream-toggle');
     const streamPulseDot = document.getElementById('stream-pulse-dot');
 
+    // Master Execution State
+    let isBotRunning = localStorage.getItem('solana_bot_active') !== 'false';
+
     function updateUiState() {
-      if (btnMaster) {
-        btnMaster.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40';
-      }
-      if (btnMasterText) btnMasterText.innerText = '● LIVE BOT ACTIVE (ڕاستەقینە)';
-      if (btnMasterIcon) btnMasterIcon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-300 live-pulse';
+      if (isBotRunning) {
+        if (btnMaster) {
+          btnMaster.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30 border border-rose-400/40';
+        }
+        if (btnMasterText) btnMasterText.innerText = '⏹ STOP BOT (وەستاندن)';
+        if (btnMasterIcon) btnMasterIcon.className = 'w-2.5 h-2.5 rounded-full bg-rose-300 live-pulse';
 
-      if (badgeStatus) {
-        badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
-      }
-      if (badgeStatusText) badgeStatusText.innerText = '⚡ ON-CHAIN MAINNET ACTIVE (چالاکە)';
-      if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 live-pulse inline-block';
+        if (badgeStatus) {
+          badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
+        }
+        if (badgeStatusText) badgeStatusText.innerText = '⚡ ULTRA DUAL SNIPER ACTIVE (چالاکە)';
+        if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 live-pulse inline-block';
 
-      if (btnStream) {
-        btnStream.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white border border-emerald-400/40';
-        btnStream.innerText = '● MAINNET RUNNING';
+        if (btnStream) {
+          btnStream.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-rose-600 text-white border border-rose-400/40 shadow-md shadow-rose-600/20';
+          btnStream.innerText = '⏹ STOP BOT';
+        }
+        if (streamPulseDot) streamPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse';
+      } else {
+        if (btnMaster) {
+          btnMaster.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400/40';
+        }
+        if (btnMasterText) btnMasterText.innerText = '▶ START SNIPER BOT (دەستپێکردن)';
+        if (btnMasterIcon) btnMasterIcon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-300 live-pulse';
+
+        if (badgeStatus) {
+          badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1.5';
+        }
+        if (badgeStatusText) badgeStatusText.innerText = 'PAUSED (وەستاوە)';
+        if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400 inline-block';
+
+        if (btnStream) {
+          btnStream.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white border border-emerald-400/40 shadow-md shadow-emerald-600/20';
+          btnStream.innerText = '▶ START BOT';
+        }
+        if (streamPulseDot) streamPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
       }
-      if (streamPulseDot) streamPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse';
     }
+
+    function toggleBotState() {
+      isBotRunning = !isBotRunning;
+      localStorage.setItem('solana_bot_active', isBotRunning ? 'true' : 'false');
+      updateUiState();
+      const container = document.getElementById('log-container');
+      if (container) {
+        const msg = isBotRunning 
+          ? '<div class="p-2 rounded bg-emerald-950/80 border border-emerald-500 text-emerald-300 font-bold leading-relaxed">[دەستپێکردنەوە 🚀] بۆتەکە دەستیپێکردەوە! کڕین و فرۆشتنی دراوە نوێیەکان چالاکە.</div>'
+          : '<div class="p-2 rounded bg-rose-950/80 border border-rose-500 text-rose-300 font-bold leading-relaxed">[وەستاندن ⏹] بۆتەکە ڕاگیرا (PAUSED).</div>';
+        const el = document.createElement('div');
+        el.innerHTML = msg;
+        container.prepend(el);
+      }
+    }
+
+    if (btnMaster) btnMaster.addEventListener('click', toggleBotState);
+    if (btnStream) btnStream.addEventListener('click', toggleBotState);
 
     // Copy wallet functionality
     const btnCopy = document.getElementById('btn-copy-wallet');
