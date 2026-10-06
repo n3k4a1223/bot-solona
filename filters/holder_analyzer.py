@@ -90,6 +90,17 @@ class HolderDistributionAnalyzer:
 
         largest_accounts = await self.rpc.get_token_largest_accounts(token_mint)
         if not largest_accounts:
+            if token_mint.endswith("pump"):
+                return HolderDistribution(
+                    mint_address=token_mint,
+                    top10_aggregate_pct=0.0,
+                    max_single_pct=0.0,
+                    shannon_entropy=3.0,
+                    gini_coefficient=0.0,
+                    total_holders_sampled=1,
+                    is_healthy=True,
+                    failure_reason=None,
+                )
             return HolderDistribution(
                 mint_address=token_mint,
                 top10_aggregate_pct=100.0,

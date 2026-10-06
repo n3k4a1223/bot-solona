@@ -126,8 +126,8 @@ class TradeExecutor:
                         if actual_tok > 0:
                             break
                     if actual_tok <= 0:
-                        actual_tok = amount_sol / 0.00000005
-                        self.logger.log_info(f"Tx confirmed on-chain ({signature_str[:12]}). Tracking with estimated {actual_tok:,.0f} tokens.")
+                        self.logger.log_warning(f"No token balance confirmed on-chain for {token_mint[:8]}. Aborting position registration.")
+                        return False, None, 0
                     return True, signature_str, int(actual_tok)
 
             # Direct RPC submission
@@ -147,8 +147,8 @@ class TradeExecutor:
                 if actual_tok > 0:
                     break
             if actual_tok <= 0:
-                actual_tok = amount_sol / 0.00000005
-                self.logger.log_info(f"Direct RPC confirmed on-chain. Tracking with estimated {actual_tok:,.0f} tokens.")
+                self.logger.log_warning(f"No token balance confirmed on-chain for {token_mint[:8]}. Aborting position registration.")
+                return False, None, 0
             return True, tx_sig or signature_str, int(actual_tok)
         except Exception as e:
             self.logger.log_error(f"PumpPortal buy execution error: {e}")
@@ -164,7 +164,12 @@ class TradeExecutor:
         """
         Executes sell order on Pump.fun bonding curve via PumpPortal trade-local API.
         """
-        import aiohttp
+        # Verify on-chain balance before attempting to sell
+        current_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+        if current_tok <= 0:
+            self.logger.log_warning(f"On-chain balance for {token_mint[:8]} is 0. Auto-clearing position.")
+            return True, "cleared_zero_balance", 0.0
+
         payload = {
             "publicKey": self.pubkey_str,
             "action": "sell",
@@ -181,6 +186,11 @@ class TradeExecutor:
                     if resp.status != 200:
                         err_text = await resp.text()
                         self.logger.log_error(f"PumpPortal sell returned status {resp.status}: {err_text}")
+                        # If 400 Bad Request, check if tokens were already liquidated/0
+                        chk_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+                        if chk_tok <= 0:
+                            self.logger.log_warning(f"On-chain balance for {token_mint[:8]} is 0. Auto-clearing position.")
+                            return True, "cleared_zero_balance", 0.0
                         return False, None, 0.0
                     raw_tx_bytes = await resp.read()
 

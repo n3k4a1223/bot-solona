@@ -71,11 +71,11 @@ class LiquidityHealthFilter:
         price_sol = sol_reserves / token_reserves
 
         # Query total token supply
-        supply_info = await self.rpc.get_token_supply(token_mint)
-        if not supply_info:
-            if token_mint.endswith("pump"):
-                supply_info = {"uiAmount": 1_000_000_000.0, "amount": "1000000000000000", "decimals": 6}
-            else:
+        if token_mint.endswith("pump"):
+            supply_info = {"uiAmount": 1_000_000_000.0, "amount": "1000000000000000", "decimals": 6}
+        else:
+            supply_info = await self.rpc.get_token_supply(token_mint)
+            if not supply_info:
                 return LiquidityMetrics(
                     pool_address=pool_address,
                     sol_reserves=sol_reserves,

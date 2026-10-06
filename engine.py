@@ -553,9 +553,10 @@ class TradingEngine:
                                 self.wallet_liquid_sol += sol_back
                             pos.realized_pnl_sol += sol_back - (pos.sol_invested * fraction)
 
-                            if pos.tokens_amount <= 0 or fraction >= 0.99:
+                            if pos.tokens_amount <= 0 or fraction >= 0.99 or sig == "cleared_zero_balance":
                                 pos.is_active = False
-                                del self.active_positions[token_mint]
+                                if token_mint in self.active_positions:
+                                    del self.active_positions[token_mint]
                                 if action == TradeAction.TAKE_PROFIT:
                                     self.logger.log_success(
                                         f"🚀 [bold green]FAST SCALP PROFIT REALIZED (+{pos.unrealized_pnl_pct:.1f}%)![/] "
@@ -571,6 +572,17 @@ class TradingEngine:
                                     )
                                 # Rapidly hunt next opportunity for immediate cycle
                                 asyncio.create_task(self._fetch_and_evaluate_instant_candidates())
+                        else:
+                            failed_cnt = getattr(pos, "failed_sells", 0) + 1
+                            pos.failed_sells = failed_cnt
+                            if failed_cnt >= 3:
+                                chk = await self.rpc_balancer.get_token_balance(self.executor.pubkey_str, token_mint)
+                                if chk <= 0:
+                                    pos.is_active = False
+                                    if token_mint in self.active_positions:
+                                        del self.active_positions[token_mint]
+                                    self.logger.log_info(f"Position {token_mint[:8]} confirmed liquidated or zero balance. Slot freed.")
+                                    asyncio.create_task(self._fetch_and_evaluate_instant_candidates())
 
                 # Update portfolio equity & check drawdown governor
                 total_unrealized_sol = sum(p.unrealized_pnl_sol for p in self.active_positions.values())

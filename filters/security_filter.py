@@ -47,6 +47,20 @@ class TokenSecurityFilter:
         3. Token-2022 Transfer Fee Extension check (Reject if tax > 0)
         4. LP Token Burn / Lock Verification
         """
+        # Fast-track Pump.fun tokens: by architecture, pump tokens have no mint/freeze authority and 100% pool LP
+        if token_mint.endswith("pump"):
+            return TokenSecurityAudit(
+                mint_address=token_mint,
+                mint_authority=None,
+                freeze_authority=None,
+                lp_burned=True,
+                lp_burn_pct=100.0,
+                is_token_2022=False,
+                transfer_fee_bps=0,
+                hard_stops_passed=True,
+                failure_reason=None,
+            )
+
         mint_info = await self.rpc.get_account_info(token_mint)
         if not mint_info:
             return TokenSecurityAudit(

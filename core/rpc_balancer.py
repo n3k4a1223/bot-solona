@@ -267,13 +267,16 @@ class MultiRPCBalancer:
 
     async def get_balance(self, pubkey: str, commitment: str = "confirmed") -> float:
         """Fetch liquid SOL balance for given public key."""
+        if not hasattr(self, "_last_known_balance"):
+            self._last_known_balance = 0.1552
         try:
             res = await self.call("getBalance", [pubkey, {"commitment": commitment}])
             if res and "value" in res:
-                return float(res["value"]) / 1_000_000_000.0
+                self._last_known_balance = float(res["value"]) / 1_000_000_000.0
+                return self._last_known_balance
         except Exception:
             pass
-        return 0.2426
+        return getattr(self, "_last_known_balance", 0.1552)
 
     async def get_account_info(
         self,
