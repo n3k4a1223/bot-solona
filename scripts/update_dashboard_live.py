@@ -37,9 +37,9 @@ POSITIONS_SECTION_HTML = r'''  <!-- Active Open Positions Monitor (Dual-Slot Arc
             <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">5s SNIPER</span>
           </div>
           <div class="my-auto py-3 text-center">
-            <div class="text-2xl mb-1 opacity-90">⚡</div>
+            <div class="text-2xl mb-1 opacity-90">💎</div>
             <div class="text-sm font-semibold text-slate-200">بۆتی پایتۆن لە کۆمپیوتەرەکەت چالاکە...</div>
-            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">چاوەڕوانی کۆینی نوێیە لە چرکەی ٥م (مارکێت کەپ $3,000 تا $15,000).</p>
+            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">چاوەڕوانی کۆینی بەهێزە بە مارکێت کەپی بەرز ($25,000 تا $500,000).</p>
           </div>
           <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
             <span>بڕی کڕین: <strong class="text-white">$5.00</strong></span>
@@ -53,12 +53,12 @@ POSITIONS_SECTION_HTML = r'''  <!-- Active Open Positions Monitor (Dual-Slot Arc
         <div class="bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between min-h-[200px]">
           <div class="flex items-center justify-between">
             <span class="text-xs font-mono font-bold text-slate-300">⚪ پێگەی بەردەست #2 (SLOT READY)</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">5s SNIPER</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">HIGH-CAP RUNNER</span>
           </div>
           <div class="my-auto py-3 text-center">
-            <div class="text-2xl mb-1 opacity-90">⚡</div>
+            <div class="text-2xl mb-1 opacity-90">💎</div>
             <div class="text-sm font-semibold text-slate-200">بۆتی پایتۆن لە کۆمپیوتەرەکەت چالاکە...</div>
-            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">ئامادەیە بۆ کڕینی دراوی دووەم بە بڕی $5.00 بە شێوەی سەربەخۆ.</p>
+            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">ئامادەیە بۆ کڕینی دراوی دووەمی بەهێز بە بڕی $5.00 بە نەختینەی پتەو.</p>
           </div>
           <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
             <span>بڕی کڕین: <strong class="text-white">$5.00</strong></span>
@@ -658,9 +658,9 @@ def update_file(filename: str):
 
     content = re.sub(
         r'<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1\.5 truncate" id="card-regime">[\s\S]*?</div>\s*<div class="text-\[11px\] text-slate-400 mt-2 leading-tight">[\s\S]*?</div>',
-        '''<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">2-TOKEN ULTRA SNIPER</div>
+        '''<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">2-TOKEN HIGH-CAP RUNNERS</div>
       <div class="text-[11px] text-slate-400 mt-2 leading-tight">
-        100% Doubler Target &bull; MC: $3k - $15k
+        100% Doubler Target &bull; MC: $25k - $500k
       </div>''',
         content,
         count=1
@@ -670,7 +670,7 @@ def update_file(filename: str):
         r'<div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1\.5" id="card-monitored">[\s\S]*?</div>\s*<div class="text-\[11px\] text-emerald-400 mt-2 flex items-center gap-1 leading-tight">[\s\S]*?</div>',
         '''<div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-monitored">2 SLOTS ACTIVE</div>
       <div class="text-[11px] text-emerald-400 mt-2 flex items-center gap-1 leading-tight">
-        <span>✓ Fresh New Listings &bull; 5s Delay</span>
+        <span>✓ Strong High-Cap &bull; Real Volume</span>
       </div>''',
         content,
         count=1

@@ -171,12 +171,12 @@ class BotConfig(BaseSettings):
         description="Fixed entry trade size in USD ($5.00 per trade).",
     )
     MIN_MARKET_CAP_USD: float = Field(
-        default=3000.0,
-        description="Minimum market cap in USD to qualify for sniper buy ($3,000).",
+        default=25000.0,
+        description="Minimum market cap in USD to qualify for strong token buy ($25,000).",
     )
     MAX_MARKET_CAP_USD: float = Field(
-        default=15000.0,
-        description="Maximum market cap in USD to qualify for sniper buy ($15,000).",
+        default=500000.0,
+        description="Maximum market cap in USD to qualify for strong token buy ($500,000).",
     )
     REQUIRE_MATCHING_WEBSITE: bool = Field(
         default=False,

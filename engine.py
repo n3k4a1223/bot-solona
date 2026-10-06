@@ -523,7 +523,16 @@ class TradingEngine:
                     except Exception:
                         pass
 
-                    # 2. Fetch latest boosts
+                    # 2. Fetch latest & top boosts
+                    try:
+                        async with session.get("https://api.dexscreener.com/token-boosts/top/v1") as resp:
+                            if resp.status == 200:
+                                top_b = await resp.json()
+                                if isinstance(top_b, list):
+                                    candidate_tokens.extend([b.get("tokenAddress") for b in top_b if b.get("chainId") == "solana"])
+                    except Exception:
+                        pass
+
                     try:
                         async with session.get("https://api.dexscreener.com/token-boosts/latest/v1") as resp:
                             if resp.status == 200:
@@ -545,19 +554,19 @@ class TradingEngine:
                                     pair_data = await pair_resp.json()
                                     pairs = pair_data.get("pairs") or []
                                     p = pairs[0] if pairs else {}
-                                    name = p.get("baseToken", {}).get("name", "Pump Gem")
+                                    name = p.get("baseToken", {}).get("name", "Strong Gem")
                                     pair_addr = p.get("pairAddress") or token_mint
                                     mc = float(p.get("marketCap") or p.get("fdv") or 0)
 
-                                    # If brand new pump token with no pair yet, default to ~$5k bonding curve MC
-                                    if mc == 0 and token_mint.endswith("pump"):
-                                        mc = 5000.0
-
+                                    # Reject weak micro-caps - only allow strong tokens ($25k - $500k MC)
                                     if mc < self.config.MIN_MARKET_CAP_USD or mc > self.config.MAX_MARKET_CAP_USD:
                                         continue
 
                                     liq_usd = float(p.get("liquidity", {}).get("usd", 0) or 0)
-                                    liq_sol = liq_usd / 125.0 if liq_usd > 0 else 5.0
+                                    if liq_usd < 3000.0:
+                                        continue
+
+                                    liq_sol = liq_usd / 125.0 if liq_usd > 0 else 24.0
 
                                     pool_type = PoolType.PUMP_FUN if token_mint.endswith("pump") else PoolType.RAYDIUM_V4
                                     event = PoolDetectionEvent(
@@ -571,8 +580,8 @@ class TradingEngine:
                                         detected_at=time.time(),
                                     )
                                     self.logger.log_info(
-                                        f"[bold cyan][SCANNER CANDIDATE][/] Found {name} "
-                                        f"({token_mint[:8]}) | MC: ${mc:,.0f} | Dex: {p.get('dexId', 'pump')}"
+                                        f"[bold green][STRONG HIGH-CAP TOKEN][/] {name} "
+                                        f"({token_mint[:8]}) | MC: ${mc:,.0f} | Liq: ${liq_usd:,.0f} | Dex: {p.get('dexId', 'raydium')}"
                                     )
                                     asyncio.create_task(self.handle_pool_detection(event))
                         except Exception as e:
