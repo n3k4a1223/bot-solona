@@ -95,9 +95,9 @@ class DynamicExitEngine:
         if calculated_stop > position.trailing_stop_price:
             position.trailing_stop_price = calculated_stop
 
-        # Check stop loss breach (with 20s grace period for newly opened positions)
+        # Check stop loss breach (with 5s grace period for newly opened positions)
         time_in_trade = now - position.entry_timestamp
-        if time_in_trade > 20.0:
+        if time_in_trade > 5.0:
             hard_stop = position.entry_price_sol * 0.65  # -35% hard stop
             if current_price_sol <= hard_stop:
                 reason = (
@@ -153,33 +153,18 @@ class DynamicExitEngine:
                 return TradeAction.SCALE_OUT, reason, 1.0
 
         # ---------------------------------------------------------------------
-        # 3. Adaptive Stagnation Cut: Reclaim Idle Capital
-        # Dynamic timeout scaled inversely with market volatility regime
+        # 3. 20-Second Direct Stagnation Cut: Reclaim Idle Capital
+        # Directly exits after 20.0 seconds if no 2x X reached within 20s
         # ---------------------------------------------------------------------
         time_in_trade = now - position.entry_timestamp
-
-        if volatility.regime == "EXTREME":
-            dynamic_timeout = self.base_stagnation_seconds * 0.5   # 60s
-        elif volatility.regime == "HIGH":
-            dynamic_timeout = self.base_stagnation_seconds * 0.75  # 90s
-        elif volatility.regime == "LOW":
-            dynamic_timeout = self.base_stagnation_seconds * 1.5   # 180s
-        else:
-            dynamic_timeout = self.base_stagnation_seconds         # 120s
-
-        # If holding duration exceeded timeout and volume velocity has collapsed
-        is_volume_stagnant = (
-            momentum.total_transactions < 3
-            or (momentum.buy_volume_sol + momentum.sell_volume_sol) < 0.5
-        )
-        is_price_flat = abs(position.unrealized_pnl_pct) < 4.0
-
-        if time_in_trade > dynamic_timeout and is_volume_stagnant and is_price_flat:
+        if time_in_trade >= float(self.base_stagnation_seconds):
             reason = (
-                f"Adaptive Stagnation Cut: Position inactive for {time_in_trade:.0f}s "
-                f"(Timeout: {dynamic_timeout:.0f}s, Regime: {volatility.regime}). "
-                f"Reclaiming idle capital for high-velocity setups."
+                f"⏱️ 20-SECOND TIMEOUT CUT: No 2x X reached within {self.base_stagnation_seconds}s "
+                f"(Held: {time_in_trade:.1f}s | PnL: {pnl_pct:+.1f}%). "
+                f"Directly selling 100% to reclaim capital for the next coin!"
             )
             return TradeAction.STAGNATION_CUT, reason, 1.0
+
+        return TradeAction.HOLD, "Position within dynamic parameters", 0.0
 
         return TradeAction.HOLD, "Position within dynamic parameters", 0.0

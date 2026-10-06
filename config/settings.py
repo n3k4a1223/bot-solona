@@ -160,7 +160,7 @@ class BotConfig(BaseSettings):
     )
     SNIPER_DELAY_SECONDS: float = Field(
         default=5.0,
-        description="Sniper execution delay in seconds after pool launch (e.g., exactly 5s to bypass block 0/1 MEV traps).",
+        description="Sniper execution delay in seconds after pool launch (exactly 5s mark sniper).",
     )
     TARGET_TAKE_PROFIT_PCT: float = Field(
         default=100.0,
@@ -207,8 +207,8 @@ class BotConfig(BaseSettings):
         description="Rolling window in seconds to compute retail buyer velocity and order flow delta.",
     )
     MIN_UNIQUE_BUYERS_3M: int = Field(
-        default=12,
-        description="Minimum absolute unique buyer wallets within 3 minutes to confirm organic inflow.",
+        default=15,
+        description="Minimum 15 unique trader wallets/buyers before buy entry is approved.",
     )
     BUY_VELOCITY_WEIGHT: float = Field(
         default=1.25,
@@ -231,8 +231,8 @@ class BotConfig(BaseSettings):
         description="Consecutive intervals of sell-volume delta exceeding buy-volume before scaling out.",
     )
     STAGNATION_TIMEOUT_SECONDS_BASE: int = Field(
-        default=300,
-        description="Base timeout in seconds to cut idle capital if momentum velocity collapses.",
+        default=20,
+        description="Strict 20-second timeout: directly sell off token if no 2x X reached within 20s.",
     )
     MIN_VOLUME_MULTIPLIER_BASELINE: float = Field(
         default=2.0,

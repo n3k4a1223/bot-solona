@@ -54,6 +54,12 @@
           </h1>
         </div>
                 <div class="flex items-center gap-2 flex-wrap">
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-cyan-500/40 shadow-md">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 live-pulse"></span>
+            <span class="text-xs text-slate-400 font-medium hidden sm:inline">سەرمایەی والێت:</span>
+            <span id="nav-wallet-sol" class="font-mono font-bold text-xs sm:text-sm text-cyan-300">0.2870 SOL</span>
+            <span id="nav-wallet-usd" class="text-[11px] font-mono text-slate-400">($35.88)</span>
+          </div>
           <button id="btn-master-toggle" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400/40">
             <span id="btn-master-icon" class="w-2.5 h-2.5 rounded-full bg-emerald-300 live-pulse"></span>
             <span id="btn-master-text">▶ START SNIPER BOT</span>
@@ -138,16 +144,16 @@
     <!-- Liquid Balance Card -->
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 sm:p-5 shadow-lg flex flex-col justify-between">
       <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
-        <span>LIQUID BALANCE</span>
-        <span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 font-mono">SOL</span>
+        <span>سەرمایەی والێت (WALLET BALANCE)</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 font-mono">LIVE SOL</span>
       </div>
       <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5 flex flex-wrap items-baseline gap-2" id="card-balance">
-        <span id="card-balance-sol">0.3850 SOL</span>
-        <span class="text-xs font-normal text-slate-400" id="card-balance-usd">($48.12 USD)</span>
+        <span id="card-balance-sol" class="text-cyan-300">0.2870 SOL</span>
+        <span class="text-xs font-normal text-slate-400" id="card-balance-usd">($35.88 USD)</span>
       </div>
       <div class="text-[11px] text-emerald-400/90 mt-2 flex items-center gap-1 leading-tight" id="card-balance-sub">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse inline-block"></span>
-        <span class="text-emerald-400 font-semibold">Live Mainnet ($5 Sized &bull; 0.3850 SOL)</span>
+        <span class="text-emerald-400 font-semibold">Live Mainnet ($5 Sized &bull; 0.2870 SOL)</span>
       </div>
     </div>
 
@@ -157,9 +163,9 @@
         <span>ACTIVE REGIME</span>
         <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 font-mono">AUTO</span>
       </div>
-      <div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">2-TOKEN HIGH-CAP RUNNERS</div>
+      <div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">15+ TRADERS • 20s CUT</div>
       <div class="text-[11px] text-slate-400 mt-2 leading-tight">
-        100% Doubler Target &bull; MC: $25k - $500k
+        +100% تارگێتی ئێکس &bull; فرۆشتن لە ٢٠ چرکە ئەگەر ئێکس نەبوو
       </div>
     </div>
 
@@ -171,7 +177,7 @@
       </div>
       <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-drawdown">0.00%</div>
       <div class="text-[11px] text-slate-400 mt-2 leading-tight">
-        Peak: <span class="font-mono font-bold text-white" id="card-peak">0.3850 SOL</span>
+        Peak: <span class="font-mono font-bold text-white" id="card-peak">0.2870 SOL</span>
       </div>
     </div>
 
@@ -183,7 +189,7 @@
       </div>
       <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-monitored">2 SLOTS ACTIVE</div>
       <div class="text-[11px] text-emerald-400 mt-2 flex items-center gap-1 leading-tight">
-        <span>✓ Strong High-Cap &bull; Real Volume</span>
+        <span>✓ 15+ Traders &bull; 5s Sniper &bull; 20s Cut</span>
       </div>
     </div>
   </section>
@@ -199,7 +205,7 @@
       </div>
       <div class="flex items-center gap-2">
         <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-semibold">
-          2 SLOTS • $5.00 EACH
+          2 SLOTS • $5.00 EACH • 20s CUT
         </span>
       </div>
     </div>
@@ -216,11 +222,11 @@
           <div class="my-auto py-3 text-center">
             <div class="text-2xl mb-1 opacity-90">💎</div>
             <div class="text-sm font-semibold text-slate-200">بۆتی پایتۆن لە کۆمپیوتەرەکەت چالاکە...</div>
-            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">چاوەڕوانی کۆینی بەهێزە بە مارکێت کەپی بەرز ($25,000 تا $500,000).</p>
+            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">تەنها ئەو دراوانە دەکڕێت کە ١٥ کەس مامەڵەی تێدا دەکات لە ٥ چرکەی یەکەمدا.</p>
           </div>
           <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
-            <span>بڕی کڕین: <strong class="text-white">$5.00</strong></span>
-            <span>ئامانج: <strong class="text-amber-400">+100% دوو هێندە ($10)</strong></span>
+            <span>کڕین: <strong class="text-white">$5.00</strong></span>
+            <span>ئامانج: <strong class="text-amber-400">+100% ئێکس (فرۆشتن لە ٢٠ چرکە ئەگەر نەبوو)</strong></span>
           </div>
         </div>
       </div>
@@ -230,16 +236,16 @@
         <div class="bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between min-h-[200px]">
           <div class="flex items-center justify-between">
             <span class="text-xs font-mono font-bold text-slate-300">⚪ پێگەی بەردەست #2 (SLOT READY)</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">HIGH-CAP RUNNER</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">15+ TRADERS</span>
           </div>
           <div class="my-auto py-3 text-center">
             <div class="text-2xl mb-1 opacity-90">💎</div>
             <div class="text-sm font-semibold text-slate-200">بۆتی پایتۆن لە کۆمپیوتەرەکەت چالاکە...</div>
-            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">ئامادەیە بۆ کڕینی دراوی دووەمی بەهێز بە بڕی $5.00 بە نەختینەی پتەو.</p>
+            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">ئامادەیە بۆ کڕینی دراوی دووەم بە مەرجی ١٥ مامەڵە و فرۆشتن لە چرکەی ٢٠م.</p>
           </div>
           <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
-            <span>بڕی کڕین: <strong class="text-white">$5.00</strong></span>
-            <span>ئامانج: <strong class="text-amber-400">+100% دوو هێندە ($10)</strong></span>
+            <span>کڕین: <strong class="text-white">$5.00</strong></span>
+            <span>ئامانج: <strong class="text-amber-400">+100% ئێکس (فرۆشتن لە ٢٠ چرکە ئەگەر نەبوو)</strong></span>
           </div>
         </div>
       </div>
@@ -523,7 +529,7 @@
     <div class="flex items-center gap-2 overflow-hidden">
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse shrink-0"></div>
       <div class="font-mono text-[11px] text-slate-200 truncate">
-        LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">0.3850 SOL ($48.12)</span>
+        LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">0.2870 SOL ($35.88)</span>
       </div>
     </div>
     <div class="flex items-center gap-2 shrink-0">
@@ -539,7 +545,7 @@
     </div>
   </div>
 
-                      <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboard Engine -->
+                        <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboard Engine -->
   <script>
     // 1. Core On-Chain Configuration
     const WALLET_ADDR = '9DHC9BZKMEKpoKLLr7XgATc8gfpb8WeNBKaovbkDi3Bo';
@@ -550,7 +556,7 @@
     ];
     let currentRpcIdx = 0;
     let solPriceUsd = 125.0;
-    let realWalletSol = 0.3850;
+    let realWalletSol = 0.2870;
     let knownTxSignatures = new Set();
 
     function getRpcUrl() {
@@ -581,7 +587,7 @@
         if (badgeStatus) {
           badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
         }
-        if (badgeStatusText) badgeStatusText.innerText = '⚡ ULTRA DUAL SNIPER ACTIVE (چالاکە)';
+        if (badgeStatusText) badgeStatusText.innerText = '⚡ 15+ TRADERS • 5s SNIPER • 20s CUT (چالاکە)';
         if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 live-pulse inline-block';
 
         if (btnStream) {
@@ -698,6 +704,11 @@
       if (balSolEl) balSolEl.innerText = `${realWalletSol.toFixed(4)} SOL`;
       const balUsdEl = document.getElementById('card-balance-usd');
       if (balUsdEl) balUsdEl.innerText = `($${usdVal} USD)`;
+
+      const navSol = document.getElementById('nav-wallet-sol');
+      if (navSol) navSol.innerText = `${realWalletSol.toFixed(4)} SOL`;
+      const navUsd = document.getElementById('nav-wallet-usd');
+      if (navUsd) navUsd.innerText = `($${usdVal})`;
 
       const mobileBal = document.getElementById('mobile-sticky-balance');
       if (mobileBal) mobileBal.innerText = `${realWalletSol.toFixed(4)} SOL ($${usdVal})`;

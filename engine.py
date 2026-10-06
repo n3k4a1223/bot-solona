@@ -237,6 +237,41 @@ class TradingEngine:
         if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
             return
 
+        # ---------------------------------------------------------------------
+        # Verify 15+ Unique Traders / Transactions (Requirement: 15 traders)
+        # ---------------------------------------------------------------------
+        traders_count = 0
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2.5)) as session:
+                async with session.get(
+                    f"https://api.dexscreener.com/latest/dex/tokens/{token_mint}",
+                    headers={"User-Agent": "Mozilla/5.0"}
+                ) as r:
+                    if r.status == 200:
+                        d = await r.json()
+                        prs = d.get("pairs") or []
+                        if prs:
+                            txns = prs[0].get("txns", {})
+                            traders_count = int(txns.get("m5", {}).get("buys", 0) + txns.get("m5", {}).get("sells", 0))
+        except Exception:
+            pass
+
+        if traders_count < self.config.MIN_UNIQUE_BUYERS_3M:
+            try:
+                sigs = await self.rpc_balancer.call("getSignaturesForAddress", [token_mint, {"limit": 20}])
+                if isinstance(sigs, list):
+                    traders_count = max(traders_count, len(sigs))
+            except Exception:
+                pass
+
+        if traders_count < self.config.MIN_UNIQUE_BUYERS_3M:
+            self.logger.log_info(
+                f"[bold yellow][WAITING 15 TRADERS][/] Token: [bold cyan]{token_mint[:8]}[/] "
+                f"only has {traders_count} traders (< {self.config.MIN_UNIQUE_BUYERS_3M} required). Skipping entry."
+            )
+            return
+
         initial_sol = event.initial_sol_liquidity if event.initial_sol_liquidity > 0 else 35.0
         initial_tokens = 1_000_000_000.0 * 0.8  # 80% in pool
 
@@ -390,7 +425,7 @@ class TradingEngine:
 
         while self._running:
             try:
-                await asyncio.sleep(2.0)
+                await asyncio.sleep(1.0)
                 if not self.active_positions:
                     continue
 
@@ -560,6 +595,12 @@ class TradingEngine:
 
                                     # Reject weak micro-caps - only allow strong tokens ($25k - $500k MC)
                                     if mc < self.config.MIN_MARKET_CAP_USD or mc > self.config.MAX_MARKET_CAP_USD:
+                                        continue
+
+                                    # Check minimum 15 traders
+                                    txns = p.get("txns", {})
+                                    traders = int(txns.get("m5", {}).get("buys", 0) + txns.get("m5", {}).get("sells", 0))
+                                    if traders < self.config.MIN_UNIQUE_BUYERS_3M:
                                         continue
 
                                     liq_usd = float(p.get("liquidity", {}).get("usd", 0) or 0)

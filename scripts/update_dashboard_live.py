@@ -22,7 +22,7 @@ POSITIONS_SECTION_HTML = r'''  <!-- Active Open Positions Monitor (Dual-Slot Arc
       </div>
       <div class="flex items-center gap-2">
         <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-semibold">
-          2 SLOTS • $5.00 EACH
+          2 SLOTS • $5.00 EACH • 20s CUT
         </span>
       </div>
     </div>
@@ -39,11 +39,11 @@ POSITIONS_SECTION_HTML = r'''  <!-- Active Open Positions Monitor (Dual-Slot Arc
           <div class="my-auto py-3 text-center">
             <div class="text-2xl mb-1 opacity-90">💎</div>
             <div class="text-sm font-semibold text-slate-200">بۆتی پایتۆن لە کۆمپیوتەرەکەت چالاکە...</div>
-            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">چاوەڕوانی کۆینی بەهێزە بە مارکێت کەپی بەرز ($25,000 تا $500,000).</p>
+            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">تەنها ئەو دراوانە دەکڕێت کە ١٥ کەس مامەڵەی تێدا دەکات لە ٥ چرکەی یەکەمدا.</p>
           </div>
           <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
-            <span>بڕی کڕین: <strong class="text-white">$5.00</strong></span>
-            <span>ئامانج: <strong class="text-amber-400">+100% دوو هێندە ($10)</strong></span>
+            <span>کڕین: <strong class="text-white">$5.00</strong></span>
+            <span>ئامانج: <strong class="text-amber-400">+100% ئێکس (فرۆشتن لە ٢٠ چرکە ئەگەر نەبوو)</strong></span>
           </div>
         </div>
       </div>
@@ -53,16 +53,16 @@ POSITIONS_SECTION_HTML = r'''  <!-- Active Open Positions Monitor (Dual-Slot Arc
         <div class="bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between min-h-[200px]">
           <div class="flex items-center justify-between">
             <span class="text-xs font-mono font-bold text-slate-300">⚪ پێگەی بەردەست #2 (SLOT READY)</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">HIGH-CAP RUNNER</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">15+ TRADERS</span>
           </div>
           <div class="my-auto py-3 text-center">
             <div class="text-2xl mb-1 opacity-90">💎</div>
             <div class="text-sm font-semibold text-slate-200">بۆتی پایتۆن لە کۆمپیوتەرەکەت چالاکە...</div>
-            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">ئامادەیە بۆ کڕینی دراوی دووەمی بەهێز بە بڕی $5.00 بە نەختینەی پتەو.</p>
+            <p class="text-xs text-slate-400 mt-1 max-w-xs mx-auto">ئامادەیە بۆ کڕینی دراوی دووەم بە مەرجی ١٥ مامەڵە و فرۆشتن لە چرکەی ٢٠م.</p>
           </div>
           <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
-            <span>بڕی کڕین: <strong class="text-white">$5.00</strong></span>
-            <span>ئامانج: <strong class="text-amber-400">+100% دوو هێندە ($10)</strong></span>
+            <span>کڕین: <strong class="text-white">$5.00</strong></span>
+            <span>ئامانج: <strong class="text-amber-400">+100% ئێکس (فرۆشتن لە ٢٠ چرکە ئەگەر نەبوو)</strong></span>
           </div>
         </div>
       </div>
@@ -87,7 +87,7 @@ JS_ENGINE_CODE = r'''  <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboa
     ];
     let currentRpcIdx = 0;
     let solPriceUsd = 125.0;
-    let realWalletSol = 0.3850;
+    let realWalletSol = 0.2870;
     let knownTxSignatures = new Set();
 
     function getRpcUrl() {
@@ -118,7 +118,7 @@ JS_ENGINE_CODE = r'''  <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboa
         if (badgeStatus) {
           badgeStatus.className = 'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
         }
-        if (badgeStatusText) badgeStatusText.innerText = '⚡ ULTRA DUAL SNIPER ACTIVE (چالاکە)';
+        if (badgeStatusText) badgeStatusText.innerText = '⚡ 15+ TRADERS • 5s SNIPER • 20s CUT (چالاکە)';
         if (badgeStatusDot) badgeStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 live-pulse inline-block';
 
         if (btnStream) {
@@ -235,6 +235,11 @@ JS_ENGINE_CODE = r'''  <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboa
       if (balSolEl) balSolEl.innerText = `${realWalletSol.toFixed(4)} SOL`;
       const balUsdEl = document.getElementById('card-balance-usd');
       if (balUsdEl) balUsdEl.innerText = `($${usdVal} USD)`;
+
+      const navSol = document.getElementById('nav-wallet-sol');
+      if (navSol) navSol.innerText = `${realWalletSol.toFixed(4)} SOL`;
+      const navUsd = document.getElementById('nav-wallet-usd');
+      if (navUsd) navUsd.innerText = `($${usdVal})`;
 
       const mobileBal = document.getElementById('mobile-sticky-balance');
       if (mobileBal) mobileBal.innerText = `${realWalletSol.toFixed(4)} SOL ($${usdVal})`;
@@ -642,11 +647,36 @@ def update_file(filename: str):
         content = f.read()
 
     # 0. Replace static old balance placeholders
-    content = content.replace("0.4229 SOL ($50.75)", "0.3850 SOL ($48.12)")
-    content = content.replace("0.4229 SOL", "0.3850 SOL")
-    content = content.replace("($50.75 USD)", "($48.12 USD)")
+    content = content.replace("0.4229 SOL ($50.75)", "0.2870 SOL ($35.88)")
+    content = content.replace("0.3850 SOL ($48.12)", "0.2870 SOL ($35.88)")
+    content = content.replace("0.3850 SOL", "0.2870 SOL")
+    content = content.replace("($48.12 USD)", "($35.88 USD)")
 
     # 1. Update Header / Stat cards
+    if 'id="nav-wallet-sol"' not in content:
+        nav_wallet_badge = '''<div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-cyan-500/40 shadow-md">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 live-pulse"></span>
+            <span class="text-xs text-slate-400 font-medium hidden sm:inline">سەرمایەی والێت:</span>
+            <span id="nav-wallet-sol" class="font-mono font-bold text-xs sm:text-sm text-cyan-300">0.2870 SOL</span>
+            <span id="nav-wallet-usd" class="text-[11px] font-mono text-slate-400">($35.88)</span>
+          </div>\n          <button id="btn-master-toggle"'''
+        content = content.replace('<button id="btn-master-toggle"', nav_wallet_badge, 1)
+
+    content = re.sub(
+        r'<div class="flex items-center justify-between text-\[11px\] text-slate-400 font-medium">\s*<span>(?:LIQUID BALANCE|سەرمایەی والێت).*?</span>[\s\S]*?id="card-balance">[\s\S]*?</div>\s*<div class="text-\[11px\] text-emerald-400/90 mt-2',
+        '''<div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+        <span>سەرمایەی والێت (WALLET BALANCE)</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 font-mono">LIVE SOL</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5 flex flex-wrap items-baseline gap-2" id="card-balance">
+        <span id="card-balance-sol" class="text-cyan-300">0.2870 SOL</span>
+        <span class="text-xs font-normal text-slate-400" id="card-balance-usd">($35.88 USD)</span>
+      </div>
+      <div class="text-[11px] text-emerald-400/90 mt-2''',
+        content,
+        count=1
+    )
+
     content = re.sub(
         r'<div class="text-base sm:text-xl font-bold font-mono text-cyan-400 mt-1\.5 truncate" id="card-alpha">[\s\S]*?</div>\s*<div class="text-\[11px\] text-slate-400 mt-2 leading-tight">[\s\S]*?</div>',
         '''<div class="text-base sm:text-xl font-bold font-mono text-cyan-400 mt-1.5 truncate" id="card-alpha">$5.00 PER TOKEN</div>
@@ -658,9 +688,9 @@ def update_file(filename: str):
 
     content = re.sub(
         r'<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1\.5 truncate" id="card-regime">[\s\S]*?</div>\s*<div class="text-\[11px\] text-slate-400 mt-2 leading-tight">[\s\S]*?</div>',
-        '''<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">2-TOKEN HIGH-CAP RUNNERS</div>
+        '''<div class="text-base sm:text-xl font-bold font-mono text-amber-300 mt-1.5 truncate" id="card-regime">15+ TRADERS • 20s CUT</div>
       <div class="text-[11px] text-slate-400 mt-2 leading-tight">
-        100% Doubler Target &bull; MC: $25k - $500k
+        +100% تارگێتی ئێکس &bull; فرۆشتن لە ٢٠ چرکە ئەگەر ئێکس نەبوو
       </div>''',
         content,
         count=1
@@ -670,7 +700,7 @@ def update_file(filename: str):
         r'<div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1\.5" id="card-monitored">[\s\S]*?</div>\s*<div class="text-\[11px\] text-emerald-400 mt-2 flex items-center gap-1 leading-tight">[\s\S]*?</div>',
         '''<div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-monitored">2 SLOTS ACTIVE</div>
       <div class="text-[11px] text-emerald-400 mt-2 flex items-center gap-1 leading-tight">
-        <span>✓ Strong High-Cap &bull; Real Volume</span>
+        <span>✓ 15+ Traders &bull; 5s Sniper &bull; 20s Cut</span>
       </div>''',
         content,
         count=1
