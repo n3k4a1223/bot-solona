@@ -158,10 +158,6 @@ class TradingEngine:
         self.logger.liquid_balance_sol = self.wallet_liquid_sol
         self.logger.peak_equity_sol = self.wallet_liquid_sol
 
-        # 2b. Auto-discover existing on-chain wallet positions (SPL & Token-2022)
-        if not self.config.DRY_RUN:
-            await self._discover_and_register_wallet_positions()
-
         # 3. Start background supervision loops
         self._cluster_monitor_task = asyncio.create_task(self._cluster_telemetry_loop())
         self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
@@ -423,7 +419,7 @@ class TradingEngine:
                 f"ENTRY TRIGGERED for [bold cyan]{token_mint[:8]}[/]! "
                 f"Allocating: [bold white]{final_sol:.4f} SOL[/] (~${final_sol * sol_price:.2f} USD) | "
                 f"Active Slots: {len(self.active_positions) + 1}/{self.config.MAX_ACTIVE_POSITIONS} | "
-                f"Target: +{self.config.TARGET_TAKE_PROFIT_PCT:.0f}% 10x Moonshot ($5 -> $50)"
+                f"Target: +{self.config.TARGET_TAKE_PROFIT_PCT:.0f}% Fast Scalp ($5 -> $7.50)"
             )
 
             # 5. Execute Buy Swap via PumpPortal / Jupiter & Jito MEV
@@ -555,11 +551,11 @@ class TradingEngine:
                                 del self.active_positions[token_mint]
                                 if action == TradeAction.TAKE_PROFIT:
                                     self.logger.log_success(
-                                        f"🚀 [bold green]10x MOONSHOT TARGET REALIZED (+{self.config.TARGET_TAKE_PROFIT_PCT:.0f}%)![/] "
+                                        f"🚀 [bold green]FAST SCALP PROFIT REALIZED (+{pos.unrealized_pnl_pct:.1f}%)![/] "
                                         f"Token: [bold cyan]{token_mint[:8]}[/] | Returned: [bold white]{sol_back:.4f} SOL[/] "
                                         f"(Net Profit: [bold green]+{pos.realized_pnl_sol:+.4f} SOL[/]). "
                                         f"Compounded capital added to wallet balance ({self.wallet_liquid_sol:.4f} SOL). "
-                                        f"Now scanning for the NEXT token to snipe!"
+                                        f"Scanning for the NEXT high-cap coin!"
                                     )
                                 else:
                                     self.logger.log_success(

@@ -163,16 +163,16 @@ class BotConfig(BaseSettings):
         description="Sniper execution delay in seconds (0.0s for instant entry).",
     )
     TARGET_TAKE_PROFIT_PCT: float = Field(
-        default=900.0,
-        description="Target profit percentage to trigger 100% full exit (e.g. 900% = 10x gain, $5 -> $50).",
+        default=50.0,
+        description="Target profit percentage to trigger full exit (+50% fast scalp, $5 -> $7.50).",
     )
     TARGET_BUY_USD: float = Field(
         default=5.0,
         description="Fixed entry trade size in USD ($5.00 per trade).",
     )
     MIN_MARKET_CAP_USD: float = Field(
-        default=3000.0,
-        description="Minimum market cap in USD to qualify for token buy ($3,000).",
+        default=4000.0,
+        description="Minimum market cap in USD to qualify for high-cap token buy ($4,000).",
     )
     MAX_MARKET_CAP_USD: float = Field(
         default=500000.0,
@@ -231,8 +231,8 @@ class BotConfig(BaseSettings):
         description="Consecutive intervals of sell-volume delta exceeding buy-volume before scaling out.",
     )
     STAGNATION_TIMEOUT_SECONDS_BASE: int = Field(
-        default=60,
-        description="Stagnation timeout in seconds to reclaim capital if token stays flat.",
+        default=15,
+        description="Fast 15-second stagnation timeout to reclaim capital if token stays flat.",
     )
     MIN_VOLUME_MULTIPLIER_BASELINE: float = Field(
         default=2.0,
