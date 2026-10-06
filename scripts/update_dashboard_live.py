@@ -87,9 +87,8 @@ JS_ENGINE_CODE = r'''  <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboa
     ];
     let currentRpcIdx = 0;
     let solPriceUsd = 125.0;
-    let realWalletSol = 0.38169;
+    let realWalletSol = 0.3850;
     let knownTxSignatures = new Set();
-    let isBotRunning = true;
 
     function getRpcUrl() {
       return RPC_ENDPOINTS[currentRpcIdx % RPC_ENDPOINTS.length];
@@ -641,6 +640,11 @@ def update_file(filename: str):
 
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
+
+    # 0. Replace static old balance placeholders
+    content = content.replace("0.4229 SOL ($50.75)", "0.3850 SOL ($48.12)")
+    content = content.replace("0.4229 SOL", "0.3850 SOL")
+    content = content.replace("($50.75 USD)", "($48.12 USD)")
 
     # 1. Update Header / Stat cards
     content = re.sub(

@@ -142,12 +142,12 @@
         <span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 font-mono">SOL</span>
       </div>
       <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5 flex flex-wrap items-baseline gap-2" id="card-balance">
-        <span id="card-balance-sol">0.4229 SOL</span>
-        <span class="text-xs font-normal text-slate-400" id="card-balance-usd">($50.75 USD)</span>
+        <span id="card-balance-sol">0.3850 SOL</span>
+        <span class="text-xs font-normal text-slate-400" id="card-balance-usd">($48.12 USD)</span>
       </div>
       <div class="text-[11px] text-emerald-400/90 mt-2 flex items-center gap-1 leading-tight" id="card-balance-sub">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse inline-block"></span>
-        <span class="text-emerald-400 font-semibold">Live Mainnet ($5 Sized &bull; 0.4229 SOL)</span>
+        <span class="text-emerald-400 font-semibold">Live Mainnet ($5 Sized &bull; 0.3850 SOL)</span>
       </div>
     </div>
 
@@ -171,7 +171,7 @@
       </div>
       <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-drawdown">0.00%</div>
       <div class="text-[11px] text-slate-400 mt-2 leading-tight">
-        Peak: <span class="font-mono font-bold text-white" id="card-peak">0.4229 SOL</span>
+        Peak: <span class="font-mono font-bold text-white" id="card-peak">0.3850 SOL</span>
       </div>
     </div>
 
@@ -523,7 +523,7 @@
     <div class="flex items-center gap-2 overflow-hidden">
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse shrink-0"></div>
       <div class="font-mono text-[11px] text-slate-200 truncate">
-        LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">0.4229 SOL ($50.75)</span>
+        LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">0.3850 SOL ($48.12)</span>
       </div>
     </div>
     <div class="flex items-center gap-2 shrink-0">
@@ -539,7 +539,7 @@
     </div>
   </div>
 
-                <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboard Engine -->
+                  <!-- Genuine Real-Time Solana On-Chain Explorer & Dashboard Engine -->
   <script>
     // 1. Core On-Chain Configuration
     const WALLET_ADDR = '9DHC9BZKMEKpoKLLr7XgATc8gfpb8WeNBKaovbkDi3Bo';
@@ -550,9 +550,8 @@
     ];
     let currentRpcIdx = 0;
     let solPriceUsd = 125.0;
-    let realWalletSol = 0.38169;
+    let realWalletSol = 0.3850;
     let knownTxSignatures = new Set();
-    let isBotRunning = true;
 
     function getRpcUrl() {
       return RPC_ENDPOINTS[currentRpcIdx % RPC_ENDPOINTS.length];
