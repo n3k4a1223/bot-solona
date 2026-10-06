@@ -171,8 +171,8 @@ class BotConfig(BaseSettings):
         description="Fixed entry trade size in USD ($5.00 per trade).",
     )
     MIN_MARKET_CAP_USD: float = Field(
-        default=4000.0,
-        description="Minimum market cap in USD to qualify for high-cap token buy ($4,000).",
+        default=3000.0,
+        description="Minimum market cap in USD to qualify for token buy ($3,000 allows all newly listed gems).",
     )
     MAX_MARKET_CAP_USD: float = Field(
         default=500000.0,

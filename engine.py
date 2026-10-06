@@ -169,6 +169,9 @@ class TradingEngine:
         await self.ws_listener.start()
         self.logger.log_success("Trading Engine successfully initialized. Awaiting market opportunities...")
 
+        # 5. Immediate Startup Opportunity Evaluation (Instant trade on start)
+        asyncio.create_task(self._fetch_and_evaluate_instant_candidates())
+
     async def stop(self) -> None:
         """Gracefully terminates all network connections and tasks."""
         self.logger.log_warning("Initiating graceful engine shutdown...")
@@ -562,6 +565,8 @@ class TradingEngine:
                                         f"Position Closed for [bold cyan]{token_mint[:8]}[/]! "
                                         f"Total Realized PnL: {pos.realized_pnl_sol:+.3f} SOL. Reason: {reason}"
                                     )
+                                # Rapidly hunt next opportunity for immediate cycle
+                                asyncio.create_task(self._fetch_and_evaluate_instant_candidates())
 
                 # Update portfolio equity & check drawdown governor
                 total_unrealized_sol = sum(p.unrealized_pnl_sol for p in self.active_positions.values())
@@ -606,7 +611,10 @@ class TradingEngine:
 
         while self._running:
             try:
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(2.0)
+                if len(self.active_positions) + self._pending_buys < self.config.MAX_ACTIVE_POSITIONS:
+                    await self._fetch_and_evaluate_instant_candidates()
+
                 if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
                     continue
 
@@ -697,6 +705,53 @@ class TradingEngine:
             except Exception as e:
                 self.logger.log_debug(f"DexScreener scanner loop notice: {e}")
                 await asyncio.sleep(2.0)
+
+    async def _fetch_and_evaluate_instant_candidates(self) -> None:
+        """
+        Instantly queries freshest and active coins on pump.fun
+        to ensure zero-wait immediate trade execution upon startup and slot rotation.
+        """
+        if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
+            return
+
+        import aiohttp
+        url = "https://frontend-api-v3.pump.fun/coins?offset=0&limit=10&sort=created_timestamp&order=DESC&includeNsfw=false"
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4.0)) as session:
+                async with session.get(url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
+                    if resp.status == 200:
+                        coins = await resp.json()
+                        for c in coins:
+                            if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
+                                break
+                            mint = c.get("mint")
+                            if not mint or mint in self.active_positions or mint in self.monitored_pools:
+                                continue
+
+                            mc_sol = float(c.get("market_cap") or 28.0)
+                            mc_usd = mc_sol * 125.0
+                            if mc_usd < self.config.MIN_MARKET_CAP_USD or mc_usd > self.config.MAX_MARKET_CAP_USD:
+                                continue
+
+                            name = c.get("name", "PumpGem")
+                            symbol = c.get("symbol", "PUMP")
+                            self.logger.log_info(
+                                f"⚡ [bold cyan][INSTANT FRESH OPPORTUNITY][/] {name} ({symbol}) | "
+                                f"Mint: {mint[:8]}... | MC: ${mc_usd:,.0f} ({mc_sol:.1f} SOL) - Triggering rapid trade evaluation!"
+                            )
+                            event = PoolDetectionEvent(
+                                pool_address=mint,
+                                token_mint=mint,
+                                base_mint=WSOL_MINT,
+                                quote_mint="",
+                                pool_type=PoolType.PUMP_FUN,
+                                initial_sol_liquidity=mc_sol,
+                                signature=mint[:16],
+                                detected_at=time.time(),
+                            )
+                            asyncio.create_task(self.handle_pool_detection(event))
+        except Exception as e:
+            self.logger.log_debug(f"Instant candidate lookup notice: {e}")
 
     async def _pumpportal_ws_stream_loop(self) -> None:
         """
