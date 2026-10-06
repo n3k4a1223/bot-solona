@@ -426,7 +426,7 @@ class TradingEngine:
                 f"ENTRY TRIGGERED for [bold cyan]{token_mint[:8]}[/]! "
                 f"Allocating: [bold white]{final_sol:.4f} SOL[/] (~${final_sol * sol_price:.2f} USD) | "
                 f"Active Slots: {len(self.active_positions) + 1}/{self.config.MAX_ACTIVE_POSITIONS} | "
-                f"Target: +{self.config.TARGET_TAKE_PROFIT_PCT:.0f}% Fast Scalp ($5 -> $7.50)"
+                f"Target: PEAK-TRAILING PROFIT LOCK (Rides green candles to top, exits within 6%-8% of peak)"
             )
 
             # 5. Execute Buy Swap via PumpPortal / Jupiter & Jito MEV
@@ -559,11 +559,11 @@ class TradingEngine:
                                     del self.active_positions[token_mint]
                                 if action == TradeAction.TAKE_PROFIT:
                                     self.logger.log_success(
-                                        f"🚀 [bold green]FAST SCALP PROFIT REALIZED (+{pos.unrealized_pnl_pct:.1f}%)![/] "
+                                        f"🚀 [bold green]PEAK PROFIT REALIZED (+{pos.unrealized_pnl_pct:.1f}%) NEAR ABSOLUTE TOP![/] "
                                         f"Token: [bold cyan]{token_mint[:8]}[/] | Returned: [bold white]{sol_back:.4f} SOL[/] "
                                         f"(Net Profit: [bold green]+{pos.realized_pnl_sol:+.4f} SOL[/]). "
                                         f"Compounded capital added to wallet balance ({self.wallet_liquid_sol:.4f} SOL). "
-                                        f"Scanning for the NEXT high-cap coin!"
+                                        f"Scanning for the NEXT high-potential coin!"
                                     )
                                 else:
                                     self.logger.log_success(

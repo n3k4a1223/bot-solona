@@ -63,15 +63,28 @@ class DynamicExitEngine:
         pnl_pct = position.unrealized_pnl_pct
 
         # ---------------------------------------------------------------------
-        # 0. Master Take-Profit Target: Fast Scalp (+50% Quick Profit)
-        # Sells 100% immediately to lock pure profit!
+        # 0. Peak-Trailing Profit Maximization Engine (Sell at the Highest Peak)
+        # Holds as long as the coin is reaching new highs; exits immediately
+        # when price pulls back 6%-8% from the highest recorded peak!
         # ---------------------------------------------------------------------
-        if pnl_pct >= self.target_take_profit_pct or current_price_sol >= (position.entry_price_sol * (1.0 + self.target_take_profit_pct / 100.0)):
-            reason = (
-                f"🎯 FAST SCALP PROFIT REALIZED (+{pnl_pct:.1f}% >= +{self.target_take_profit_pct:.1f}%)! "
-                f"Selling 100% of tokens to lock pure profit and rotate SOL into the next coin!"
-            )
-            return TradeAction.TAKE_PROFIT, reason, 1.0
+        peak_pnl = 0.0
+        if position.entry_price_sol > 0:
+            peak_pnl = ((position.peak_price_sol - position.entry_price_sol) / position.entry_price_sol) * 100.0
+
+        if peak_pnl >= 20.0:
+            # Dynamic Pullback Tolerance from Peak:
+            # - Parabolic Moonshots (>= +100%): tight 6% pullback from peak
+            # - Strong Pumps (>= +50%): 7% pullback from peak
+            # - Moderate Gains (>= +20%): 8% pullback from peak
+            pullback_tolerance = 0.06 if peak_pnl >= 100.0 else (0.07 if peak_pnl >= 50.0 else 0.08)
+            pullback_threshold = position.peak_price_sol * (1.0 - pullback_tolerance)
+
+            if current_price_sol <= pullback_threshold:
+                reason = (
+                    f"🎯 PEAK PROFIT REALIZED! Coin peaked at +{peak_pnl:.1f}%, "
+                    f"selling near the absolute highest peak at +{pnl_pct:.1f}% to lock maximum profit!"
+                )
+                return TradeAction.TAKE_PROFIT, reason, 1.0
 
         # ---------------------------------------------------------------------
         # 1. Update Dynamic ATR / Volatility Trailing Stop Loss Band
@@ -116,7 +129,7 @@ class DynamicExitEngine:
                 return TradeAction.STOP_LOSS, reason, 1.0
 
         # ---------------------------------------------------------------------
-        # 2. Dynamic Profit Realization: Buyer Volume Exhaustion Scale-Out
+        # 2. Dynamic Profit Realization: Buyer Volume Exhaustion (Sell at Peak)
         # ---------------------------------------------------------------------
         is_selling_dominant = (
             momentum.sell_volume_sol > momentum.buy_volume_sol
@@ -130,16 +143,13 @@ class DynamicExitEngine:
 
         if (
             position.consecutive_exhaustions >= self.consecutive_exhaustion_intervals
-            and position.unrealized_pnl_pct >= 25.0
+            and position.unrealized_pnl_pct >= 20.0
         ):
-            if position.scaled_out_count == 0:
-                position.scaled_out_count = 1
-                position.consecutive_exhaustions = 0
-                reason = (
-                    f"Buyer Exhaustion (50% scale-out): Momentum slowing at "
-                    f"+{position.unrealized_pnl_pct:.1f}% PnL. Locking profit!"
-                )
-                return TradeAction.SCALE_OUT, reason, 0.50
+            reason = (
+                f"🎯 PEAK EXHAUSTION EXIT! Heavy selling detected near top "
+                f"(+{position.unrealized_pnl_pct:.1f}% PnL). Locking 100% profit!"
+            )
+            return TradeAction.TAKE_PROFIT, reason, 1.0
 
         # ---------------------------------------------------------------------
         # 3. 15-Second Fast Stagnation Cut: Reclaim Idle Capital

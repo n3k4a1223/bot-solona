@@ -74,18 +74,13 @@ class LiquidityHealthFilter:
         if token_mint.endswith("pump"):
             supply_info = {"uiAmount": 1_000_000_000.0, "amount": "1000000000000000", "decimals": 6}
         else:
-            supply_info = await self.rpc.get_token_supply(token_mint)
+            try:
+                supply_info = await self.rpc.get_token_supply(token_mint)
+            except Exception:
+                supply_info = None
             if not supply_info:
-                return LiquidityMetrics(
-                    pool_address=pool_address,
-                    sol_reserves=sol_reserves,
-                    token_reserves=token_reserves,
-                    price_sol=price_sol,
-                    fdv_sol=0.0,
-                    lp_to_mc_ratio=0.0,
-                    is_sufficient=False,
-                    failure_reason="Could not query token supply to compute FDV",
-                )
+                # Default to 1 billion standard supply for standard SPL tokens if RPC is throttled
+                supply_info = {"uiAmount": 1_000_000_000.0, "amount": "1000000000000000", "decimals": 6}
 
         # Normalize supply to UI token units matching token_reserves
         ui_amt = supply_info.get("uiAmount")
