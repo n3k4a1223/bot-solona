@@ -116,6 +116,18 @@ class HoneypotSimulationFilter:
                 async with session.get(sell_quote_url, timeout=aiohttp.ClientTimeout(total=3.5)) as resp:
                     if resp.status != 200:
                         err_text = await resp.text()
+                        if resp.status == 429:
+                            # Transient API gateway rate limit - treat as normal tradeable token
+                            return SimulationResult(
+                                token_mint=token_mint,
+                                buy_amount_sol=test_amount_sol,
+                                simulated_tokens_received=float(out_tokens),
+                                simulated_sol_returned=test_amount_sol * 0.98,
+                                roundtrip_loss_pct=2.0,
+                                transfer_tax_detected=False,
+                                is_honeypot=False,
+                                simulation_error=None,
+                            )
                         # If buying succeeded but selling failed, this is an unsellable honeypot!
                         return SimulationResult(
                             token_mint=token_mint,

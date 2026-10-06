@@ -143,8 +143,12 @@ class TradingEngine:
 
         # 2. Query initial wallet balance
         if not self.config.DRY_RUN:
-            bal = await self.rpc_balancer.get_balance(self.executor.pubkey_str)
-            self.wallet_liquid_sol = bal
+            try:
+                bal = await self.rpc_balancer.get_balance(self.executor.pubkey_str)
+                if bal > 0:
+                    self.wallet_liquid_sol = bal
+            except Exception as e:
+                self.logger.log_warning(f"Initial get_balance notice: {e}")
             self.logger.log_info(f"Live Wallet Balance: [bold green]{self.wallet_liquid_sol:.4f} SOL[/]")
             if self.wallet_liquid_sol <= 0.01:
                 self.logger.log_warning(
@@ -749,7 +753,8 @@ class TradingEngine:
                                 signature=mint[:16],
                                 detected_at=time.time(),
                             )
-                            asyncio.create_task(self.handle_pool_detection(event))
+                            await self.handle_pool_detection(event)
+                            await asyncio.sleep(1.0)
         except Exception as e:
             self.logger.log_debug(f"Instant candidate lookup notice: {e}")
 

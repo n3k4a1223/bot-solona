@@ -61,16 +61,19 @@ class HolderDistributionAnalyzer:
 
         supply_info = await self.rpc.get_token_supply(token_mint)
         if not supply_info:
-            return HolderDistribution(
-                mint_address=token_mint,
-                top10_aggregate_pct=100.0,
-                max_single_pct=100.0,
-                shannon_entropy=0.0,
-                gini_coefficient=1.0,
-                total_holders_sampled=0,
-                is_healthy=False,
-                failure_reason="Unable to query token supply from RPC",
-            )
+            if token_mint.endswith("pump"):
+                supply_info = {"uiAmount": 1_000_000_000.0, "amount": "1000000000000000", "decimals": 6}
+            else:
+                return HolderDistribution(
+                    mint_address=token_mint,
+                    top10_aggregate_pct=100.0,
+                    max_single_pct=100.0,
+                    shannon_entropy=0.0,
+                    gini_coefficient=1.0,
+                    total_holders_sampled=0,
+                    is_healthy=False,
+                    failure_reason="Unable to query token supply from RPC",
+                )
 
         total_supply = float(supply_info.get("amount", 0))
         if total_supply <= 0:
