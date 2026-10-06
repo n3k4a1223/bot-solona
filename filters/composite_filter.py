@@ -37,7 +37,7 @@ class CompositeRiskEvaluator:
     def __init__(
         self,
         rpc_balancer: MultiRPCBalancer,
-        jupiter_api_url: str = "https://quote-api.jup.ag/v6",
+        jupiter_api_url: str = "https://api.jup.ag/swap/v1",
         min_sol_reserves: float = 15.0,
         min_lp_to_mc_ratio: float = 0.08,
         max_top10_percent: float = 20.0,

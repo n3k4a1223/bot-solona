@@ -83,8 +83,8 @@ class BotConfig(BaseSettings):
     # 3. Execution Routing & MEV (Jupiter v6 & Jito)
     # -------------------------------------------------------------------------
     JUPITER_API_URL: str = Field(
-        default="https://quote-api.jup.ag/v6",
-        description="Jupiter v6 Swap API base URL.",
+        default="https://api.jup.ag/swap/v1",
+        description="Jupiter Swap API v1 base URL.",
     )
     MAX_SLIPPAGE_BPS: int = Field(
         default=250,

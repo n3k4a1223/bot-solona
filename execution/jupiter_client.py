@@ -19,7 +19,7 @@ WSOL_MINT = "So11111111111111111111111111111111111111112"
 class JupiterClient:
     """Asynchronous client for Jupiter v6 Swap API."""
 
-    def __init__(self, api_url: str = "https://quote-api.jup.ag/v6"):
+    def __init__(self, api_url: str = "https://api.jup.ag/swap/v1"):
         self.api_url = api_url.rstrip("/")
         self.logger = get_logger()
         self._session: Optional[aiohttp.ClientSession] = None

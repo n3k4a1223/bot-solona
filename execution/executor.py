@@ -119,12 +119,15 @@ class TradeExecutor:
                         signature=signature_str,
                         notes=f"PumpPortal Jito Bundle: {bundle_id[:12]}",
                     )
-                    await asyncio.sleep(2.0)
+                    await asyncio.sleep(2.5)
                     actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
                     if actual_tok <= 0:
-                        await asyncio.sleep(1.5)
+                        await asyncio.sleep(2.0)
                         actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
-                    return True, signature_str, int(actual_tok) if actual_tok > 0 else 500_000
+                    if actual_tok <= 0:
+                        self.logger.log_warning(f"No tokens arrived in wallet for {token_mint[:8]}. Aborting position registration.")
+                        return False, None, 0
+                    return True, signature_str, int(actual_tok)
 
             # Direct RPC submission
             tx_sig = await self.rpc.send_raw_transaction(signed_b64)
@@ -136,12 +139,15 @@ class TradeExecutor:
                 signature=tx_sig or signature_str,
                 notes="PumpPortal Direct Transaction",
             )
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(2.5)
             actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
             if actual_tok <= 0:
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(2.0)
                 actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
-            return True, tx_sig or signature_str, int(actual_tok) if actual_tok > 0 else 500_000
+            if actual_tok <= 0:
+                self.logger.log_warning(f"No tokens arrived in wallet for {token_mint[:8]}. Aborting position registration.")
+                return False, None, 0
+            return True, tx_sig or signature_str, int(actual_tok)
         except Exception as e:
             self.logger.log_error(f"PumpPortal buy execution error: {e}")
             return False, None, 0
@@ -300,9 +306,11 @@ class TradeExecutor:
         signed_tx_b64, signature_str = self._sign_transaction(swap_tx_b64)
 
         # Dispatch via Jito MEV Bundle or Direct RPC
+        tx_hash = None
         if self.use_jito:
             bundle_id = await self.jito.send_bundle([signed_tx_b64])
             if bundle_id:
+                tx_hash = signature_str
                 self.logger.log_trade(
                     action="BUY [JITO]",
                     token_mint=token_mint,
@@ -311,18 +319,31 @@ class TradeExecutor:
                     signature=signature_str,
                     notes=f"Jito Bundle: {bundle_id[:12]} | Tip: {tip_lamports} lamports",
                 )
-                return True, signature_str, expected_tokens
-            self.logger.log_warning("Jito bundle submission failed; falling back to direct RPC submission.")
+            else:
+                self.logger.log_warning("Jito bundle submission failed; falling back to direct RPC submission.")
 
-        tx_sig = await self.rpc.send_raw_transaction(signed_tx_b64)
-        self.logger.log_trade(
-            action="BUY [RPC]",
-            token_mint=token_mint,
-            amount_sol=amount_sol,
-            price_sol=(amount_sol / (expected_tokens / 1e6)) if expected_tokens > 0 else 0.0,
-            signature=tx_sig,
-        )
-        return True, tx_sig, expected_tokens
+        if not tx_hash:
+            tx_sig = await self.rpc.send_raw_transaction(signed_tx_b64)
+            tx_hash = tx_sig or signature_str
+            self.logger.log_trade(
+                action="BUY [RPC]",
+                token_mint=token_mint,
+                amount_sol=amount_sol,
+                price_sol=(amount_sol / (expected_tokens / 1e6)) if expected_tokens > 0 else 0.0,
+                signature=tx_hash,
+            )
+
+        await asyncio.sleep(2.5)
+        actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+        if actual_tok <= 0:
+            await asyncio.sleep(2.0)
+            actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+
+        if actual_tok > 0:
+            return True, tx_hash, int(actual_tok)
+        else:
+            self.logger.log_warning(f"No token balance confirmed on-chain for {token_mint[:8]}. Aborting position registration.")
+            return False, None, 0
 
     async def execute_sell(
         self,
