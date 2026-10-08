@@ -73,6 +73,137 @@ class TradeExecutor:
                 return Keypair()
             raise ValueError(f"Invalid WALLET_PRIVATE_KEY format: {e}")
 
+    async def _execute_direct_pump_buy(
+        self,
+        token_mint: str,
+        amount_sol: float,
+        slippage_percent: float = 15.0,
+    ) -> Tuple[bool, Optional[str], int]:
+        """
+        Executes buy order directly on-chain via the native Pump.fun Program ID
+        bypassing third-party APIs and Cloudflare blocks completely.
+        """
+        try:
+            import struct
+            from solders.instruction import Instruction, AccountMeta
+            from solders.message import MessageV0
+            from solders.hash import Hash
+            from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
+
+            mint_pubkey = Pubkey.from_string(token_mint)
+            pump_prog = Pubkey.from_string("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P")
+            token_prog = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+            assoc_prog = Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
+            sys_prog = Pubkey.from_string("11111111111111111111111111111111")
+            rent_sysvar = Pubkey.from_string("SysvarRent111111111111111111111111111111111")
+            event_auth = Pubkey.from_string("Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1")
+            fee_recipient = Pubkey.from_string("CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM")
+
+            bonding_curve = Pubkey.find_program_address([b"bonding-curve", bytes(mint_pubkey)], pump_prog)[0]
+            global_pda = Pubkey.find_program_address([b"global"], pump_prog)[0]
+            assoc_bc = Pubkey.find_program_address([bytes(bonding_curve), bytes(token_prog), bytes(mint_pubkey)], assoc_prog)[0]
+            assoc_user = Pubkey.find_program_address([bytes(self.keypair.pubkey()), bytes(token_prog), bytes(mint_pubkey)], assoc_prog)[0]
+
+            cu_limit_ix = set_compute_unit_limit(100_000)
+            cu_price_ix = set_compute_unit_price(50_000)
+
+            create_ata_ix = Instruction(
+                program_id=assoc_prog,
+                accounts=[
+                    AccountMeta(pubkey=self.keypair.pubkey(), is_signer=True, is_writable=True),
+                    AccountMeta(pubkey=assoc_user, is_signer=False, is_writable=True),
+                    AccountMeta(pubkey=self.keypair.pubkey(), is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=mint_pubkey, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=sys_prog, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=token_prog, is_signer=False, is_writable=False),
+                ],
+                data=bytes([1]),
+            )
+
+            # In pump.fun bonding curve origin, 1 SOL buys approx 28M tokens
+            tokens_approx = int((amount_sol / 0.000000035) * (1.0 - slippage_percent / 100.0) * 1e6)
+            max_sol_lamports = int(amount_sol * 1e9 * (1.0 + slippage_percent / 100.0))
+            buy_discriminator = bytes([102, 6, 61, 18, 1, 218, 235, 234])
+            buy_data = buy_discriminator + struct.pack("<QQ", tokens_approx, max_sol_lamports)
+
+            buy_ix = Instruction(
+                program_id=pump_prog,
+                accounts=[
+                    AccountMeta(pubkey=global_pda, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=fee_recipient, is_signer=False, is_writable=True),
+                    AccountMeta(pubkey=mint_pubkey, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=bonding_curve, is_signer=False, is_writable=True),
+                    AccountMeta(pubkey=assoc_bc, is_signer=False, is_writable=True),
+                    AccountMeta(pubkey=assoc_user, is_signer=False, is_writable=True),
+                    AccountMeta(pubkey=self.keypair.pubkey(), is_signer=True, is_writable=True),
+                    AccountMeta(pubkey=sys_prog, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=token_prog, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=rent_sysvar, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=event_auth, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=pump_prog, is_signer=False, is_writable=False),
+                ],
+                data=buy_data,
+            )
+
+            bh_info = await self.rpc.get_latest_blockhash()
+            recent_bh_str = bh_info.get("blockhash") if isinstance(bh_info, dict) else None
+            recent_bh = Hash.from_string(recent_bh_str) if recent_bh_str else Hash.default()
+
+            msg = MessageV0.try_compile(
+                payer=self.keypair.pubkey(),
+                instructions=[cu_limit_ix, cu_price_ix, create_ata_ix, buy_ix],
+                address_lookup_table_accounts=[],
+                recent_blockhash=recent_bh,
+            )
+            tx = VersionedTransaction(msg, [self.keypair])
+            signed_b64 = base64.b64encode(bytes(tx)).decode("ascii")
+            signature_str = str(tx.signatures[0])
+
+            if self.use_jito:
+                bundle_id = await self.jito.send_bundle([signed_b64])
+                if bundle_id:
+                    self.logger.log_trade(
+                        action="BUY [PUMP-DIRECT/JITO]",
+                        token_mint=token_mint,
+                        amount_sol=amount_sol,
+                        price_sol=0.0,
+                        signature=signature_str,
+                        notes=f"Direct On-Chain Pump.fun Jito: {bundle_id[:12]}",
+                    )
+                    actual_tok = 0.0
+                    for _ in range(4):
+                        await asyncio.sleep(1.5)
+                        actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+                        if actual_tok > 0:
+                            break
+                    if actual_tok <= 0:
+                        self.logger.log_warning(f"No token balance confirmed on-chain for {token_mint[:8]}.")
+                        return False, None, 0
+                    return True, signature_str, int(actual_tok)
+
+            tx_sig = await self.rpc.send_raw_transaction(signed_b64)
+            self.logger.log_trade(
+                action="BUY [PUMP-DIRECT/RPC]",
+                token_mint=token_mint,
+                amount_sol=amount_sol,
+                price_sol=0.0,
+                signature=tx_sig or signature_str,
+                notes="Direct On-Chain Pump.fun Transaction",
+            )
+            actual_tok = 0.0
+            for _ in range(4):
+                await asyncio.sleep(1.5)
+                actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+                if actual_tok > 0:
+                    break
+            if actual_tok <= 0:
+                self.logger.log_warning(f"No token balance confirmed on-chain for {token_mint[:8]}.")
+                return False, None, 0
+            return True, tx_sig or signature_str, int(actual_tok)
+        except Exception as e:
+            self.logger.log_error(f"Direct pump buy execution error: {e}")
+            return False, None, 0
+
     async def _execute_pumpportal_buy(
         self,
         token_mint: str,
@@ -80,7 +211,7 @@ class TradeExecutor:
         slippage_percent: float = 15.0,
     ) -> Tuple[bool, Optional[str], int]:
         """
-        Executes buy order on Pump.fun bonding curve via PumpPortal trade-local API.
+        Executes buy order on Pump.fun bonding curve with automatic fallback to direct on-chain.
         """
         import aiohttp
         payload = {
@@ -94,12 +225,11 @@ class TradeExecutor:
             "pool": "auto",
         }
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8.0)) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
                 async with session.post("https://pumpportal.fun/api/trade-local", json=payload) as resp:
                     if resp.status != 200:
-                        err_text = await resp.text()
-                        self.logger.log_error(f"PumpPortal buy returned status {resp.status}: {err_text}")
-                        return False, None, 0
+                        self.logger.log_warning(f"PumpPortal API status {resp.status}. Executing directly on-chain...")
+                        return await self._execute_direct_pump_buy(token_mint, amount_sol, slippage_percent)
                     raw_tx_bytes = await resp.read()
 
             tx = VersionedTransaction.from_bytes(raw_tx_bytes)
@@ -151,8 +281,116 @@ class TradeExecutor:
                 return False, None, 0
             return True, tx_sig or signature_str, int(actual_tok)
         except Exception as e:
-            self.logger.log_error(f"PumpPortal buy execution error: {e}")
-            return False, None, 0
+            self.logger.log_warning(f"PumpPortal API notice ({e}). Executing directly on-chain...")
+            return await self._execute_direct_pump_buy(token_mint, amount_sol, slippage_percent)
+
+    async def _execute_direct_pump_sell(
+        self,
+        token_mint: str,
+        tokens_amount: int,
+        reason: str = "EXIT",
+        slippage_percent: float = 15.0,
+    ) -> Tuple[bool, Optional[str], float]:
+        """
+        Executes sell order directly on-chain via the native Pump.fun Program ID.
+        """
+        try:
+            import struct
+            from solders.instruction import Instruction, AccountMeta
+            from solders.message import MessageV0
+            from solders.hash import Hash
+            from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
+
+            current_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+            if current_tok <= 0:
+                self.logger.log_warning(f"On-chain balance for {token_mint[:8]} is 0. Auto-clearing position.")
+                return True, "cleared_zero_balance", 0.0
+
+            mint_pubkey = Pubkey.from_string(token_mint)
+            pump_prog = Pubkey.from_string("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P")
+            token_prog = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+            assoc_prog = Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
+            sys_prog = Pubkey.from_string("11111111111111111111111111111111")
+            event_auth = Pubkey.from_string("Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1")
+            fee_recipient = Pubkey.from_string("CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM")
+
+            bonding_curve = Pubkey.find_program_address([b"bonding-curve", bytes(mint_pubkey)], pump_prog)[0]
+            global_pda = Pubkey.find_program_address([b"global"], pump_prog)[0]
+            assoc_bc = Pubkey.find_program_address([bytes(bonding_curve), bytes(token_prog), bytes(mint_pubkey)], assoc_prog)[0]
+            assoc_user = Pubkey.find_program_address([bytes(self.keypair.pubkey()), bytes(token_prog), bytes(mint_pubkey)], assoc_prog)[0]
+
+            cu_limit_ix = set_compute_unit_limit(100_000)
+            cu_price_ix = set_compute_unit_price(50_000)
+
+            sell_discriminator = bytes([51, 230, 133, 164, 1, 127, 131, 173])
+            sell_data = sell_discriminator + struct.pack("<QQ", int(tokens_amount), 1)
+
+            sell_ix = Instruction(
+                program_id=pump_prog,
+                accounts=[
+                    AccountMeta(pubkey=global_pda, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=fee_recipient, is_signer=False, is_writable=True),
+                    AccountMeta(pubkey=mint_pubkey, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=bonding_curve, is_signer=False, is_writable=True),
+                    AccountMeta(pubkey=assoc_bc, is_signer=False, is_writable=True),
+                    AccountMeta(pubkey=assoc_user, is_signer=False, is_writable=True),
+                    AccountMeta(pubkey=self.keypair.pubkey(), is_signer=True, is_writable=True),
+                    AccountMeta(pubkey=sys_prog, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=assoc_prog, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=token_prog, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=event_auth, is_signer=False, is_writable=False),
+                    AccountMeta(pubkey=pump_prog, is_signer=False, is_writable=False),
+                ],
+                data=sell_data,
+            )
+
+            bh_info = await self.rpc.get_latest_blockhash()
+            recent_bh_str = bh_info.get("blockhash") if isinstance(bh_info, dict) else None
+            recent_bh = Hash.from_string(recent_bh_str) if recent_bh_str else Hash.default()
+
+            msg = MessageV0.try_compile(
+                payer=self.keypair.pubkey(),
+                instructions=[cu_limit_ix, cu_price_ix, sell_ix],
+                address_lookup_table_accounts=[],
+                recent_blockhash=recent_bh,
+            )
+            tx = VersionedTransaction(msg, [self.keypair])
+            signed_b64 = base64.b64encode(bytes(tx)).decode("ascii")
+            signature_str = str(tx.signatures[0])
+
+            bal_before = await self.rpc.get_balance(self.pubkey_str)
+            if self.use_jito:
+                bundle_id = await self.jito.send_bundle([signed_b64])
+                if bundle_id:
+                    await asyncio.sleep(1.5)
+                    bal_after = await self.rpc.get_balance(self.pubkey_str)
+                    sol_received = max(0.001, bal_after - bal_before)
+                    self.logger.log_trade(
+                        action=f"SELL [{reason}-DIRECT/JITO]",
+                        token_mint=token_mint,
+                        amount_sol=sol_received,
+                        price_sol=0.0,
+                        signature=signature_str,
+                        notes=f"Direct On-Chain Sell Jito: {bundle_id[:12]} | Net SOL: {sol_received:.4f}",
+                    )
+                    return True, signature_str, sol_received
+
+            tx_sig = await self.rpc.send_raw_transaction(signed_b64)
+            await asyncio.sleep(2.0)
+            bal_after = await self.rpc.get_balance(self.pubkey_str)
+            sol_received = max(0.001, bal_after - bal_before)
+            self.logger.log_trade(
+                action=f"SELL [{reason}-DIRECT/RPC]",
+                token_mint=token_mint,
+                amount_sol=sol_received,
+                price_sol=0.0,
+                signature=tx_sig or signature_str,
+                notes=f"Direct On-Chain Sell Transaction | Net SOL: {sol_received:.4f}",
+            )
+            return True, tx_sig or signature_str, sol_received
+        except Exception as e:
+            self.logger.log_error(f"Direct pump sell execution error: {e}")
+            return False, None, 0.0
 
     async def _execute_pumpportal_sell(
         self,
@@ -162,7 +400,7 @@ class TradeExecutor:
         slippage_percent: float = 15.0,
     ) -> Tuple[bool, Optional[str], float]:
         """
-        Executes sell order on Pump.fun bonding curve via PumpPortal trade-local API.
+        Executes sell order on Pump.fun bonding curve via PumpPortal trade-local API with direct fallback.
         """
         # Verify on-chain balance before attempting to sell
         current_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
@@ -181,17 +419,15 @@ class TradeExecutor:
             "pool": "auto",
         }
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8.0)) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
                 async with session.post("https://pumpportal.fun/api/trade-local", json=payload) as resp:
                     if resp.status != 200:
-                        err_text = await resp.text()
-                        self.logger.log_error(f"PumpPortal sell returned status {resp.status}: {err_text}")
-                        # If 400 Bad Request, check if tokens were already liquidated/0
                         chk_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
                         if chk_tok <= 0:
                             self.logger.log_warning(f"On-chain balance for {token_mint[:8]} is 0. Auto-clearing position.")
                             return True, "cleared_zero_balance", 0.0
-                        return False, None, 0.0
+                        self.logger.log_warning(f"PumpPortal API status {resp.status}. Executing direct on-chain sell...")
+                        return await self._execute_direct_pump_sell(token_mint, tokens_amount, reason, slippage_percent)
                     raw_tx_bytes = await resp.read()
 
             tx = VersionedTransaction.from_bytes(raw_tx_bytes)
@@ -231,8 +467,8 @@ class TradeExecutor:
             )
             return True, tx_sig or signature_str, sol_received
         except Exception as e:
-            self.logger.log_error(f"PumpPortal sell execution error: {e}")
-            return False, None, 0.0
+            self.logger.log_warning(f"PumpPortal sell notice ({e}). Executing direct on-chain sell...")
+            return await self._execute_direct_pump_sell(token_mint, tokens_amount, reason, slippage_percent)
 
     async def execute_buy(
         self,
