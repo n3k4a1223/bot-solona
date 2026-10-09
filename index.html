@@ -62,8 +62,8 @@
           <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-cyan-500/40 shadow-md">
             <span class="w-2 h-2 rounded-full bg-emerald-400 live-pulse"></span>
             <span class="text-xs text-slate-400 font-medium hidden sm:inline">سەرمایەی والێت:</span>
-            <span id="nav-wallet-sol" class="font-mono font-bold text-xs sm:text-sm text-cyan-300">0.2870 SOL</span>
-            <span id="nav-wallet-usd" class="text-[11px] font-mono text-slate-400">($35.88)</span>
+            <span id="nav-wallet-sol" class="font-mono font-bold text-xs sm:text-sm text-cyan-300">0.0072 SOL</span>
+            <span id="nav-wallet-usd" class="text-[11px] font-mono text-slate-400">($0.90)</span>
           </div>
           <button id="btn-master-toggle" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 border border-emerald-400/40">
             <span id="btn-master-icon" class="w-2.5 h-2.5 rounded-full bg-emerald-300 live-pulse"></span>
@@ -153,12 +153,12 @@
         <span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 font-mono">LIVE SOL</span>
       </div>
       <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5 flex flex-wrap items-baseline gap-2" id="card-balance">
-        <span id="card-balance-sol" class="text-cyan-300">0.1552 SOL</span>
-        <span class="text-xs font-normal text-slate-400" id="card-balance-usd">($19.40 USD)</span>
+        <span id="card-balance-sol" class="text-cyan-300">0.0072 SOL</span>
+        <span class="text-xs font-normal text-slate-400" id="card-balance-usd">($0.90 USD)</span>
       </div>
       <div class="text-[11px] text-emerald-400/90 mt-2 flex items-center gap-1 leading-tight" id="card-balance-sub">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-pulse inline-block"></span>
-        <span class="text-emerald-400 font-semibold">Live Mainnet ($5 Sized &bull; 0.1552 SOL)</span>
+        <span class="text-emerald-400 font-semibold">Live Mainnet On-Chain Balance</span>
       </div>
     </div>
 
@@ -182,7 +182,7 @@
       </div>
       <div class="text-lg sm:text-2xl font-bold font-mono text-white mt-1.5" id="card-drawdown">0.00%</div>
       <div class="text-[11px] text-slate-400 mt-2 leading-tight">
-        Peak: <span class="font-mono font-bold text-white" id="card-peak">0.1552 SOL</span>
+        Peak: <span class="font-mono font-bold text-white" id="card-peak">0.0072 SOL</span>
       </div>
     </div>
 
@@ -572,7 +572,7 @@
     <div class="flex items-center gap-2 overflow-hidden">
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 live-pulse shrink-0"></div>
       <div class="font-mono text-[11px] text-slate-200 truncate">
-        LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">0.2870 SOL ($35.88)</span>
+        LIVE &bull; <span class="text-cyan-400 font-bold" id="mobile-sticky-balance">0.0072 SOL ($0.90)</span>
       </div>
     </div>
     <div class="flex items-center gap-2 shrink-0">
@@ -593,13 +593,12 @@
     // 1. Core On-Chain Configuration
     const WALLET_ADDR = '9DHC9BZKMEKpoKLLr7XgATc8gfpb8WeNBKaovbkDi3Bo';
     const RPC_ENDPOINTS = [
-      'https://mainnet.helius-rpc.com/?api-key=f854b62f-2612-4417-a131-28191ae072cb',
-      'https://api.mainnet-beta.solana.com',
-      'https://rpc.ankr.com/solana'
+      'https://solana-rpc.publicnode.com',
+      'https://api.mainnet-beta.solana.com'
     ];
     let currentRpcIdx = 0;
     let solPriceUsd = 125.0;
-    let realWalletSol = 0.2870;
+    let realWalletSol = 0.0072;
     let knownTxSignatures = new Set();
 
     function getRpcUrl() {
@@ -713,33 +712,37 @@
     // 3. Fetch Real Liquid SOL Balance from Solana Mainnet
     async function updateRealSolBalance() {
       const startMs = performance.now();
-      const rpcUrl = getRpcUrl();
 
-      try {
-        const balReq = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'getBalance',
-            params: [WALLET_ADDR, { commitment: 'confirmed' }]
-          })
-        });
+      for (let attempt = 0; attempt < RPC_ENDPOINTS.length; attempt++) {
+        const rpcUrl = getRpcUrl();
+        try {
+          const balReq = await fetch(rpcUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'getBalance',
+              params: [WALLET_ADDR, { commitment: 'confirmed' }]
+            })
+          });
 
-        const latency = Math.max(40, Math.round(performance.now() - startMs));
-        const latEl = document.getElementById('stat-latency');
-        if (latEl) latEl.innerText = `${latency}ms`;
+          if (!balReq.ok) {
+            throw new Error(`RPC HTTP ${balReq.status}`);
+          }
 
-        if (balReq.ok) {
           const balData = await balReq.json();
           if (balData.result && typeof balData.result.value === 'number') {
             const lamports = balData.result.value;
             realWalletSol = lamports / 1e9;
+            const latency = Math.max(30, Math.round(performance.now() - startMs));
+            const latEl = document.getElementById('stat-latency');
+            if (latEl) latEl.innerText = `${latency}ms`;
+            break;
           }
+        } catch (err) {
+          currentRpcIdx = (currentRpcIdx + 1) % RPC_ENDPOINTS.length;
         }
-      } catch (err) {
-        currentRpcIdx++;
       }
 
       const usdVal = (realWalletSol * solPriceUsd).toFixed(2);
@@ -767,7 +770,7 @@
 
     // 4. Fetch Real SPL & Token-2022 Token Holdings from Solana Blockchain
     async function updateRealTokenHoldings() {
-      const rpcUrl = getRpcUrl();
+      const tokenRpcUrl = 'https://api.mainnet-beta.solana.com';
       const programs = [
         'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', // Standard SPL Token
         'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'  // Token-2022 (Pump.fun & Modern SPL)
@@ -775,7 +778,7 @@
 
       try {
         const results = await Promise.allSettled(programs.map(prog =>
-          fetch(rpcUrl, {
+          fetch(tokenRpcUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -799,7 +802,7 @@
               if (info) {
                 const uiAmt = info.tokenAmount?.uiAmount;
                 const mint = info.mint;
-                if (uiAmt && uiAmt > 0 && mint !== 'So11111111111111111111111111111111111111112') {
+                if (uiAmt && uiAmt > 0.0001 && mint !== 'So11111111111111111111111111111111111111112' && mint !== 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
                   activeTokens.push({
                     mint: mint,
                     amount: uiAmt
