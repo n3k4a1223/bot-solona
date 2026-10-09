@@ -63,20 +63,30 @@ class DynamicExitEngine:
         pnl_pct = position.unrealized_pnl_pct
 
         # ---------------------------------------------------------------------
-        # 0. Peak-Trailing Profit Maximization Engine (Sell at the Highest Peak)
+        # 0. Instant 1X Take-Profit Target (+100% / Doubling Capital)
+        # Sells 100% immediately when coin reaches 1x profit (+100%)!
+        # ---------------------------------------------------------------------
+        if pnl_pct >= self.target_take_profit_pct or pnl_pct >= 100.0:
+            reason = (
+                f"🚀 1X PROFIT TARGET HIT (+{pnl_pct:.1f}%)! Doubled entry capital. "
+                f"Selling 100% immediately at peak!"
+            )
+            return TradeAction.TAKE_PROFIT, reason, 1.0
+
+        # ---------------------------------------------------------------------
+        # 0.1 Peak-Trailing Profit Maximization Engine (Sell at the Highest Peak)
         # Holds as long as the coin is reaching new highs; exits immediately
-        # when price pulls back 6%-8% from the highest recorded peak!
+        # when price pulls back 5%-6% from the highest recorded peak!
         # ---------------------------------------------------------------------
         peak_pnl = 0.0
         if position.entry_price_sol > 0:
             peak_pnl = ((position.peak_price_sol - position.entry_price_sol) / position.entry_price_sol) * 100.0
 
-        if peak_pnl >= 20.0:
+        if peak_pnl >= 15.0:
             # Dynamic Pullback Tolerance from Peak:
-            # - Parabolic Moonshots (>= +100%): tight 6% pullback from peak
-            # - Strong Pumps (>= +50%): 7% pullback from peak
-            # - Moderate Gains (>= +20%): 8% pullback from peak
-            pullback_tolerance = 0.06 if peak_pnl >= 100.0 else (0.07 if peak_pnl >= 50.0 else 0.08)
+            # - Strong Pumps (>= +50%): tight 5% pullback from peak
+            # - Moderate Gains (>= +15%): tight 6% pullback from peak
+            pullback_tolerance = 0.05 if peak_pnl >= 50.0 else 0.06
             pullback_threshold = position.peak_price_sol * (1.0 - pullback_tolerance)
 
             if current_price_sol <= pullback_threshold:
@@ -96,15 +106,21 @@ class DynamicExitEngine:
         calculated_stop = position.peak_price_sol - (self.atr_multiplier * vol_distance)
 
         # Multi-Step Profit Protection Ratchets (Guarantees Profit):
-        # If up > +15%, lock at least +5% green profit
-        if pnl_pct >= 15.0:
-            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.05)
-        # If up > +25%, lock at least +15% profit
-        if pnl_pct >= 25.0:
-            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.15)
-        # If up > +40%, lock at least +30% profit
-        if pnl_pct >= 40.0:
-            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.30)
+        # If up > +10%, lock at least +4% green profit
+        if pnl_pct >= 10.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.04)
+        # If up > +20%, lock at least +12% profit
+        if pnl_pct >= 20.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.12)
+        # If up > +35%, lock at least +25% profit
+        if pnl_pct >= 35.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.25)
+        # If up > +50%, lock at least +40% profit
+        if pnl_pct >= 50.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.40)
+        # If up > +75%, lock at least +62% profit
+        if pnl_pct >= 75.0:
+            calculated_stop = max(calculated_stop, position.entry_price_sol * 1.62)
 
         # Trailing stop can only ratchet UP, never down
         if calculated_stop > position.trailing_stop_price:

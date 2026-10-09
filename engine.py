@@ -485,28 +485,32 @@ class TradingEngine:
 
     async def _position_monitoring_loop(self) -> None:
         """
-        Continuously evaluates active positions for real-time DexScreener price ticks,
-        +100% Take-Profit doubler ($5 -> $10), ATR trailing stop breaches, and stagnation cuts.
+        Continuously evaluates active positions with ultra-low latency sub-second price ticks (0.3s),
+        instant 1X Take-Profit doubler (+100%), ATR peak-trailing profit lock, and fast stagnation cuts.
         """
         import aiohttp
 
-        while self._running:
-            try:
-                await asyncio.sleep(1.0)
-                if not self.active_positions:
-                    continue
-
-                for token_mint in list(self.active_positions.keys()):
-                    pos = self.active_positions.get(token_mint)
-                    if not pos or not pos.is_active:
+        connector = aiohttp.TCPConnector(limit=20, ttl_dns_cache=300)
+        async with aiohttp.ClientSession(
+            connector=connector,
+            timeout=aiohttp.ClientTimeout(total=2.5),
+            headers={"User-Agent": "Mozilla/5.0"}
+        ) as session:
+            while self._running:
+                try:
+                    await asyncio.sleep(0.3)
+                    if not self.active_positions:
                         continue
 
-                    # 1. Fetch real-time market price via DexScreener
-                    try:
-                        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4.0)) as session:
+                    for token_mint in list(self.active_positions.keys()):
+                        pos = self.active_positions.get(token_mint)
+                        if not pos or not pos.is_active:
+                            continue
+
+                        # 1. Fetch real-time market price via DexScreener
+                        try:
                             async with session.get(
-                                f"https://api.dexscreener.com/latest/dex/tokens/{token_mint}",
-                                headers={"User-Agent": "Mozilla/5.0"}
+                                f"https://api.dexscreener.com/latest/dex/tokens/{token_mint}"
                             ) as resp:
                                 if resp.status == 200:
                                     dex_data = await resp.json()
@@ -516,84 +520,84 @@ class TradingEngine:
                                         if live_p > 0:
                                             self.volatility_engine.record_price(token_mint, live_p)
                                             pos.current_price_sol = live_p
-                    except Exception:
-                        pass
+                        except Exception:
+                            pass
 
-                    # Update price tick
-                    volatility = self.volatility_engine.calculate_volatility(token_mint)
-                    momentum = self.momentum_tracker.evaluate_momentum(token_mint)
+                        # Update price tick
+                        volatility = self.volatility_engine.calculate_volatility(token_mint)
+                        momentum = self.momentum_tracker.evaluate_momentum(token_mint)
 
-                    current_price = pos.current_price_sol
-                    action, reason, fraction = self.exit_engine.evaluate_position_exit(
-                        position=pos,
-                        current_price_sol=current_price,
-                        volatility=volatility,
-                        momentum=momentum,
-                    )
-
-                    if action != TradeAction.HOLD:
-                        tokens_to_sell = int(pos.tokens_amount * fraction)
-                        success, sig, sol_back = await self.executor.execute_sell(
-                            token_mint=token_mint,
-                            tokens_amount=tokens_to_sell,
-                            reason=action.value,
-                            slippage_bps=self.config.MAX_SLIPPAGE_BPS,
-                            is_congested=self.circuit_breaker.cluster_state.is_congested,
+                        current_price = pos.current_price_sol
+                        action, reason, fraction = self.exit_engine.evaluate_position_exit(
+                            position=pos,
+                            current_price_sol=current_price,
+                            volatility=volatility,
+                            momentum=momentum,
                         )
 
-                        if success:
-                            pos.tokens_amount -= tokens_to_sell
-                            if not self.config.DRY_RUN:
-                                self.wallet_liquid_sol = await self.rpc_balancer.get_balance(self.executor.pubkey_str)
-                            else:
-                                self.wallet_liquid_sol += sol_back
-                            pos.realized_pnl_sol += sol_back - (pos.sol_invested * fraction)
+                        if action != TradeAction.HOLD:
+                            tokens_to_sell = int(pos.tokens_amount * fraction)
+                            success, sig, sol_back = await self.executor.execute_sell(
+                                token_mint=token_mint,
+                                tokens_amount=tokens_to_sell,
+                                reason=action.value,
+                                slippage_bps=self.config.MAX_SLIPPAGE_BPS,
+                                is_congested=self.circuit_breaker.cluster_state.is_congested,
+                            )
 
-                            if pos.tokens_amount <= 0 or fraction >= 0.99 or sig == "cleared_zero_balance":
-                                pos.is_active = False
-                                if token_mint in self.active_positions:
-                                    del self.active_positions[token_mint]
-                                if action == TradeAction.TAKE_PROFIT:
-                                    self.logger.log_success(
-                                        f"🚀 [bold green]PEAK PROFIT REALIZED (+{pos.unrealized_pnl_pct:.1f}%) NEAR ABSOLUTE TOP![/] "
-                                        f"Token: [bold cyan]{token_mint[:8]}[/] | Returned: [bold white]{sol_back:.4f} SOL[/] "
-                                        f"(Net Profit: [bold green]+{pos.realized_pnl_sol:+.4f} SOL[/]). "
-                                        f"Compounded capital added to wallet balance ({self.wallet_liquid_sol:.4f} SOL). "
-                                        f"Scanning for the NEXT high-potential coin!"
-                                    )
+                            if success:
+                                pos.tokens_amount -= tokens_to_sell
+                                if not self.config.DRY_RUN:
+                                    self.wallet_liquid_sol = await self.rpc_balancer.get_balance(self.executor.pubkey_str)
                                 else:
-                                    self.logger.log_success(
-                                        f"Position Closed for [bold cyan]{token_mint[:8]}[/]! "
-                                        f"Total Realized PnL: {pos.realized_pnl_sol:+.3f} SOL. Reason: {reason}"
-                                    )
-                                # Rapidly hunt next opportunity for immediate cycle
-                                asyncio.create_task(self._fetch_and_evaluate_instant_candidates())
-                        else:
-                            failed_cnt = getattr(pos, "failed_sells", 0) + 1
-                            pos.failed_sells = failed_cnt
-                            if failed_cnt >= 3:
-                                chk = await self.rpc_balancer.get_token_balance(self.executor.pubkey_str, token_mint)
-                                if chk <= 0:
+                                    self.wallet_liquid_sol += sol_back
+                                pos.realized_pnl_sol += sol_back - (pos.sol_invested * fraction)
+
+                                if pos.tokens_amount <= 0 or fraction >= 0.99 or sig == "cleared_zero_balance":
                                     pos.is_active = False
                                     if token_mint in self.active_positions:
                                         del self.active_positions[token_mint]
-                                    self.logger.log_info(f"Position {token_mint[:8]} confirmed liquidated or zero balance. Slot freed.")
+                                    if action == TradeAction.TAKE_PROFIT:
+                                        self.logger.log_success(
+                                            f"🚀 [bold green]1X PROFIT / PEAK REALIZED (+{pos.unrealized_pnl_pct:.1f}%) AT TOP![/] "
+                                            f"Token: [bold cyan]{token_mint[:8]}[/] | Returned: [bold white]{sol_back:.4f} SOL[/] "
+                                            f"(Net Profit: [bold green]+{pos.realized_pnl_sol:+.4f} SOL[/]). "
+                                            f"Compounded capital added to wallet balance ({self.wallet_liquid_sol:.4f} SOL). "
+                                            f"Scanning for the NEXT high-potential coin!"
+                                        )
+                                    else:
+                                        self.logger.log_success(
+                                            f"Position Closed for [bold cyan]{token_mint[:8]}[/]! "
+                                            f"Total Realized PnL: {pos.realized_pnl_sol:+.3f} SOL. Reason: {reason}"
+                                        )
+                                    # Rapidly hunt next opportunity for immediate cycle
                                     asyncio.create_task(self._fetch_and_evaluate_instant_candidates())
+                            else:
+                                failed_cnt = getattr(pos, "failed_sells", 0) + 1
+                                pos.failed_sells = failed_cnt
+                                if failed_cnt >= 3:
+                                    chk = await self.rpc_balancer.get_token_balance(self.executor.pubkey_str, token_mint)
+                                    if chk <= 0:
+                                        pos.is_active = False
+                                        if token_mint in self.active_positions:
+                                            del self.active_positions[token_mint]
+                                        self.logger.log_info(f"Position {token_mint[:8]} confirmed liquidated or zero balance. Slot freed.")
+                                        asyncio.create_task(self._fetch_and_evaluate_instant_candidates())
 
-                # Update portfolio equity & check drawdown governor
-                total_position_equity_sol = sum((p.sol_invested + p.unrealized_pnl_sol) for p in self.active_positions.values())
-                is_tripped, dd_pct = self.circuit_breaker.update_portfolio_equity(
-                    current_liquid_sol=self.wallet_liquid_sol + total_position_equity_sol,
-                    unrealized_pnl_sol=0.0,
-                )
-                self.logger.current_drawdown_pct = dd_pct
-                self.logger.peak_equity_sol = self.circuit_breaker.peak_equity_sol
-                self.logger.liquid_balance_sol = self.wallet_liquid_sol
+                    # Update portfolio equity & check drawdown governor
+                    total_position_equity_sol = sum((p.sol_invested + p.unrealized_pnl_sol) for p in self.active_positions.values())
+                    is_tripped, dd_pct = self.circuit_breaker.update_portfolio_equity(
+                        current_liquid_sol=self.wallet_liquid_sol + total_position_equity_sol,
+                        unrealized_pnl_sol=0.0,
+                    )
+                    self.logger.current_drawdown_pct = dd_pct
+                    self.logger.peak_equity_sol = self.circuit_breaker.peak_equity_sol
+                    self.logger.liquid_balance_sol = self.wallet_liquid_sol
 
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                self.logger.log_error(f"Error in position monitoring loop: {e}")
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    self.logger.log_error(f"Error in position monitoring loop: {e}")
 
     async def _cluster_telemetry_loop(self) -> None:
         """Periodically queries Solana cluster health every 20 seconds."""
@@ -623,7 +627,7 @@ class TradingEngine:
 
         while self._running:
             try:
-                await asyncio.sleep(2.0)
+                await asyncio.sleep(0.5)
                 if len(self.active_positions) + self._pending_buys < self.config.MAX_ACTIVE_POSITIONS:
                     await self._fetch_and_evaluate_instant_candidates()
 
@@ -825,7 +829,7 @@ class TradingEngine:
                                 detected_at=time.time(),
                             )
                             await self.handle_pool_detection(event)
-                            await asyncio.sleep(1.0)
+                            await asyncio.sleep(0.05)
                     except Exception as e:
                         self.logger.log_debug(f"Candidate lookup error for {mint[:8]}: {e}")
 
