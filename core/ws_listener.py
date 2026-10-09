@@ -102,7 +102,6 @@ class SolanaWebSocketListener:
         programs = [
             ("Raydium V4", RAYDIUM_V4_PROGRAM_ID),
             ("Raydium CPMM", RAYDIUM_CPMM_PROGRAM_ID),
-            ("Pump.fun", PUMP_FUN_PROGRAM_ID),
         ]
 
         for req_id, (name, prog_id) in enumerate(programs, start=1):
@@ -162,7 +161,6 @@ class SolanaWebSocketListener:
         Parses log instructions to identify new pool creation vs swap volume.
         """
         is_raydium_init = False
-        is_pump_create = False
         pool_type = PoolType.UNKNOWN
 
         for line in logs:
@@ -176,13 +174,8 @@ class SolanaWebSocketListener:
                 is_raydium_init = True
                 pool_type = PoolType.RAYDIUM_CPMM
                 break
-            # Pump.fun Token Creation
-            if "Instruction: Create" in line:
-                is_pump_create = True
-                pool_type = PoolType.PUMP_FUN
-                break
 
-        if (is_raydium_init or is_pump_create) and self.on_pool_detected:
+        if is_raydium_init and self.on_pool_detected:
             # Emit pool detection event
             event = PoolDetectionEvent(
                 pool_address="",  # Will be resolved via tx details in orchestrator

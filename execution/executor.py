@@ -78,9 +78,11 @@ class TradeExecutor:
         token_mint: str,
         amount_sol: float,
         slippage_percent: float = 15.0,
+        creator: str = "",
+        token_program: str = "",
     ) -> Tuple[bool, Optional[str], int]:
         """
-        Executes buy order directly on-chain via the native Pump.fun Program ID
+        Executes buy order directly on-chain via the native Pump.fun Program ID V2
         bypassing third-party APIs and Cloudflare blocks completely.
         """
         try:
@@ -90,22 +92,57 @@ class TradeExecutor:
             from solders.hash import Hash
             from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
 
+            # 1. Resolve creator and token_program
+            creator_str = creator
+            token_prog_str = token_program
+            if not creator_str or not token_prog_str:
+                import aiohttp
+                try:
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2.5)) as s:
+                        async with s.get(
+                            f"https://frontend-api-v3.pump.fun/coins?mints={token_mint}",
+                            headers={"User-Agent": "Mozilla/5.0"}
+                        ) as r:
+                            if r.status == 200:
+                                data = await r.json()
+                                if data and isinstance(data, list) and len(data) > 0:
+                                    c_info = data[0]
+                                    if not creator_str:
+                                        creator_str = c_info.get("creator") or ""
+                                    if not token_prog_str:
+                                        token_prog_str = c_info.get("token_program") or ""
+                except Exception:
+                    pass
+
+            if not creator_str:
+                creator_str = "FEretvMHhjptWdgJ3ixB4K4myucm9UL3eoCf4DEb8E77"
+            if not token_prog_str:
+                token_prog_str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" if token_mint.endswith("pump") else "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+
             mint_pubkey = Pubkey.from_string(token_mint)
+            creator_pubkey = Pubkey.from_string(creator_str)
             pump_prog = Pubkey.from_string("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P")
-            token_prog = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+            token_prog = Pubkey.from_string(token_prog_str)
             assoc_prog = Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
             sys_prog = Pubkey.from_string("11111111111111111111111111111111")
-            rent_sysvar = Pubkey.from_string("SysvarRent111111111111111111111111111111111")
             event_auth = Pubkey.from_string("Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1")
-            fee_recipient = Pubkey.from_string("CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM")
+            fee_prog = Pubkey.from_string("pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ")
+
+            fee_recipient = Pubkey.from_string("FWsW1xNtWscwNmKv6wVsU1iTzRN6wmmk3MjxRP5tT7hz")
+            breaking_fee_recipient = Pubkey.from_string("5YxQFdt3Tr9zJLvkFccqXVUwhdTWJQc1fFg2YPbxvxeD")
 
             bonding_curve = Pubkey.find_program_address([b"bonding-curve", bytes(mint_pubkey)], pump_prog)[0]
             global_pda = Pubkey.find_program_address([b"global"], pump_prog)[0]
             assoc_bc = Pubkey.find_program_address([bytes(bonding_curve), bytes(token_prog), bytes(mint_pubkey)], assoc_prog)[0]
             assoc_user = Pubkey.find_program_address([bytes(self.keypair.pubkey()), bytes(token_prog), bytes(mint_pubkey)], assoc_prog)[0]
+            creator_vault = Pubkey.find_program_address([b"creator-vault", bytes(creator_pubkey)], pump_prog)[0]
+            global_vol = Pubkey.find_program_address([b"global_volume_accumulator"], pump_prog)[0]
+            user_vol = Pubkey.find_program_address([b"user_volume_accumulator", bytes(self.keypair.pubkey())], pump_prog)[0]
+            fee_config = Pubkey.find_program_address([b"fee_config", bytes(pump_prog)], fee_prog)[0]
+            bonding_curve_v2 = Pubkey.find_program_address([b"bonding-curve-v2", bytes(mint_pubkey)], pump_prog)[0]
 
-            cu_limit_ix = set_compute_unit_limit(100_000)
-            cu_price_ix = set_compute_unit_price(50_000)
+            cu_limit_ix = set_compute_unit_limit(250_000)
+            cu_price_ix = set_compute_unit_price(100_000)
 
             create_ata_ix = Instruction(
                 program_id=assoc_prog,
@@ -126,24 +163,28 @@ class TradeExecutor:
             buy_discriminator = bytes([102, 6, 61, 18, 1, 218, 235, 234])
             buy_data = buy_discriminator + struct.pack("<QQ", tokens_approx, max_sol_lamports)
 
-            buy_ix = Instruction(
-                program_id=pump_prog,
-                accounts=[
-                    AccountMeta(pubkey=global_pda, is_signer=False, is_writable=False),
-                    AccountMeta(pubkey=fee_recipient, is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=mint_pubkey, is_signer=False, is_writable=False),
-                    AccountMeta(pubkey=bonding_curve, is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=assoc_bc, is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=assoc_user, is_signer=False, is_writable=True),
-                    AccountMeta(pubkey=self.keypair.pubkey(), is_signer=True, is_writable=True),
-                    AccountMeta(pubkey=sys_prog, is_signer=False, is_writable=False),
-                    AccountMeta(pubkey=token_prog, is_signer=False, is_writable=False),
-                    AccountMeta(pubkey=rent_sysvar, is_signer=False, is_writable=False),
-                    AccountMeta(pubkey=event_auth, is_signer=False, is_writable=False),
-                    AccountMeta(pubkey=pump_prog, is_signer=False, is_writable=False),
-                ],
-                data=buy_data,
-            )
+            accounts = [
+                AccountMeta(pubkey=global_pda, is_signer=False, is_writable=False), # 0
+                AccountMeta(pubkey=fee_recipient, is_signer=False, is_writable=True), # 1
+                AccountMeta(pubkey=mint_pubkey, is_signer=False, is_writable=False), # 2
+                AccountMeta(pubkey=bonding_curve, is_signer=False, is_writable=True), # 3
+                AccountMeta(pubkey=assoc_bc, is_signer=False, is_writable=True), # 4
+                AccountMeta(pubkey=assoc_user, is_signer=False, is_writable=True), # 5
+                AccountMeta(pubkey=self.keypair.pubkey(), is_signer=True, is_writable=True), # 6
+                AccountMeta(pubkey=sys_prog, is_signer=False, is_writable=False), # 7
+                AccountMeta(pubkey=token_prog, is_signer=False, is_writable=False), # 8
+                AccountMeta(pubkey=creator_vault, is_signer=False, is_writable=True), # 9
+                AccountMeta(pubkey=event_auth, is_signer=False, is_writable=False), # 10
+                AccountMeta(pubkey=pump_prog, is_signer=False, is_writable=False), # 11
+                AccountMeta(pubkey=global_vol, is_signer=False, is_writable=False), # 12
+                AccountMeta(pubkey=user_vol, is_signer=False, is_writable=True), # 13
+                AccountMeta(pubkey=fee_config, is_signer=False, is_writable=False), # 14
+                AccountMeta(pubkey=fee_prog, is_signer=False, is_writable=False), # 15
+                AccountMeta(pubkey=bonding_curve_v2, is_signer=False, is_writable=False), # 16
+                AccountMeta(pubkey=breaking_fee_recipient, is_signer=False, is_writable=True), # 17
+            ]
+
+            buy_ix = Instruction(program_id=pump_prog, accounts=accounts, data=buy_data)
 
             bh_info = await self.rpc.get_latest_blockhash()
             recent_bh_str = bh_info.get("blockhash") if isinstance(bh_info, dict) else None
@@ -171,8 +212,8 @@ class TradeExecutor:
                         notes=f"Direct On-Chain Pump.fun Jito: {bundle_id[:12]}",
                     )
                     actual_tok = 0.0
-                    for _ in range(4):
-                        await asyncio.sleep(1.5)
+                    for _ in range(5):
+                        await asyncio.sleep(1.2)
                         actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
                         if actual_tok > 0:
                             break
@@ -191,8 +232,8 @@ class TradeExecutor:
                 notes="Direct On-Chain Pump.fun Transaction",
             )
             actual_tok = 0.0
-            for _ in range(4):
-                await asyncio.sleep(1.5)
+            for _ in range(5):
+                await asyncio.sleep(1.2)
                 actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
                 if actual_tok > 0:
                     break
@@ -482,26 +523,10 @@ class TradeExecutor:
         Executes a BUY swap: WSOL -> Target Token.
         Returns: (success: bool, tx_signature_or_bundle_id: str, tokens_acquired: int)
         """
-        # If token ends with 'pump', route directly via PumpPortal bonding curve
-        if token_mint.endswith("pump"):
-            if self.dry_run:
-                simulated_sig = self._generate_simulated_hash("BUY", token_mint, amount_sol)
-                expected_tokens = int(amount_sol * 1_000_000_000)
-                self.logger.log_trade(
-                    action="BUY [PUMP/SIM]",
-                    token_mint=token_mint,
-                    amount_sol=amount_sol,
-                    price_sol=0.0,
-                    signature=simulated_sig,
-                    notes=f"Expected: {expected_tokens} tokens",
-                )
-                return True, simulated_sig, expected_tokens
-            return await self._execute_pumpportal_buy(token_mint, amount_sol)
-
         amount_lamports = int(amount_sol * 1_000_000_000)
 
         # ---------------------------------------------------------------------
-        # 1. Obtain Quote from Jupiter v6
+        # 1. Obtain Quote from Jupiter v6 (GMGN Swap Route Engine)
         # ---------------------------------------------------------------------
         quote = await self.jupiter.get_quote(
             input_mint=WSOL_MINT,
@@ -513,8 +538,8 @@ class TradeExecutor:
             if self.dry_run:
                 expected_tokens = int(amount_sol * 1_000_000_000)
             else:
-                self.logger.log_info(f"No Jupiter route for {token_mint[:8]}, routing through PumpPortal...")
-                return await self._execute_pumpportal_buy(token_mint, amount_sol)
+                self.logger.log_warning(f"No Jupiter DEX swap route found for {token_mint[:8]}. Aborting buy.")
+                return False, None, 0
         else:
             expected_tokens = int(quote.get("outAmount", 0))
 
@@ -524,7 +549,7 @@ class TradeExecutor:
         if self.dry_run:
             simulated_sig = self._generate_simulated_hash("BUY", token_mint, amount_sol)
             self.logger.log_trade(
-                action="BUY [SIM]",
+                action="BUY [GMGN/SIM]",
                 token_mint=token_mint,
                 amount_sol=amount_sol,
                 price_sol=(amount_sol / (expected_tokens / 1e6)) if expected_tokens > 0 else 0.0,
@@ -560,7 +585,7 @@ class TradeExecutor:
             if bundle_id:
                 tx_hash = signature_str
                 self.logger.log_trade(
-                    action="BUY [JITO]",
+                    action="BUY [GMGN/JITO]",
                     token_mint=token_mint,
                     amount_sol=amount_sol,
                     price_sol=(amount_sol / (expected_tokens / 1e6)) if expected_tokens > 0 else 0.0,
@@ -574,18 +599,20 @@ class TradeExecutor:
             tx_sig = await self.rpc.send_raw_transaction(signed_tx_b64)
             tx_hash = tx_sig or signature_str
             self.logger.log_trade(
-                action="BUY [RPC]",
+                action="BUY [GMGN/RPC]",
                 token_mint=token_mint,
                 amount_sol=amount_sol,
                 price_sol=(amount_sol / (expected_tokens / 1e6)) if expected_tokens > 0 else 0.0,
                 signature=tx_hash,
+                notes="GMGN Swap Transaction",
             )
 
-        await asyncio.sleep(2.5)
-        actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
-        if actual_tok <= 0:
-            await asyncio.sleep(2.0)
+        actual_tok = 0.0
+        for _ in range(5):
+            await asyncio.sleep(1.2)
             actual_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+            if actual_tok > 0:
+                break
 
         if actual_tok > 0:
             return True, tx_hash, int(actual_tok)
@@ -598,30 +625,20 @@ class TradeExecutor:
         token_mint: str,
         tokens_amount: int,
         reason: str = "EXIT",
-        slippage_bps: int = 250,
+        slippage_bps: int = 500,
         is_congested: bool = False,
     ) -> Tuple[bool, Optional[str], float]:
         """
-        Executes a SELL swap: Target Token -> WSOL.
+        Executes a SELL swap: Target Token -> WSOL via Jupiter v6 (GMGN Swap Engine).
         Returns: (success: bool, tx_signature: str, sol_received: float)
         """
         if tokens_amount <= 0:
             return False, None, 0.0
 
-        if token_mint.endswith("pump"):
-            if self.dry_run:
-                sol_received = 0.08
-                simulated_sig = self._generate_simulated_hash("SELL", token_mint, sol_received)
-                self.logger.log_trade(
-                    action=f"SELL [{reason}-SIM]",
-                    token_mint=token_mint,
-                    amount_sol=sol_received,
-                    price_sol=0.0,
-                    signature=simulated_sig,
-                    notes=f"Closed {tokens_amount} tokens",
-                )
-                return True, simulated_sig, sol_received
-            return await self._execute_pumpportal_sell(token_mint, tokens_amount, reason=reason)
+        current_tok = await self.rpc.get_token_balance(self.pubkey_str, token_mint)
+        if current_tok <= 0:
+            self.logger.log_warning(f"On-chain balance for {token_mint[:8]} is 0. Auto-clearing position.")
+            return True, "cleared_zero_balance", 0.0
 
         quote = await self.jupiter.get_quote(
             input_mint=token_mint,
@@ -633,16 +650,23 @@ class TradeExecutor:
             if self.dry_run:
                 sol_received = (tokens_amount / 1_000_000_000.0) * 1.08
             else:
-                self.logger.log_info(f"No Jupiter quote to sell {token_mint[:8]}, routing through PumpPortal...")
-                return await self._execute_pumpportal_sell(token_mint, tokens_amount, reason=reason)
-        else:
-            out_lamports = int(quote.get("outAmount", 0))
-            sol_received = out_lamports / 1_000_000_000.0
+                self.logger.log_warning(f"No Jupiter quote to sell {token_mint[:8]}. Retrying with 15% slippage...")
+                quote = await self.jupiter.get_quote(
+                    input_mint=token_mint,
+                    output_mint=WSOL_MINT,
+                    amount_lamports=tokens_amount,
+                    slippage_bps=1500,
+                )
+                if not quote:
+                    return False, None, 0.0
+
+        out_lamports = int(quote.get("outAmount", 0)) if quote else 0
+        sol_received = out_lamports / 1_000_000_000.0
 
         if self.dry_run:
             simulated_sig = self._generate_simulated_hash("SELL", token_mint, sol_received)
             self.logger.log_trade(
-                action=f"SELL [{reason}]",
+                action=f"SELL [{reason}-SIM]",
                 token_mint=token_mint,
                 amount_sol=sol_received,
                 price_sol=sol_received / (tokens_amount / 1e6) if tokens_amount > 0 else 0.0,
@@ -652,6 +676,7 @@ class TradeExecutor:
             return True, simulated_sig, sol_received
 
         # Live Execution
+        bal_before = await self.rpc.get_balance(self.pubkey_str)
         tip_lamports = await self.jito.calculate_adaptive_tip(is_high_congestion=is_congested)
         swap_tx_b64 = await self.jupiter.build_swap_transaction(
             quote_response=quote,
@@ -667,25 +692,32 @@ class TradeExecutor:
         if self.use_jito:
             bundle_id = await self.jito.send_bundle([signed_tx_b64])
             if bundle_id:
+                await asyncio.sleep(1.5)
+                bal_after = await self.rpc.get_balance(self.pubkey_str)
+                real_sol = max(0.001, bal_after - bal_before) if bal_after > bal_before else sol_received
                 self.logger.log_trade(
-                    action=f"SELL [{reason}]",
+                    action=f"SELL [{reason}-JITO]",
                     token_mint=token_mint,
-                    amount_sol=sol_received,
-                    price_sol=sol_received / (tokens_amount / 1e6) if tokens_amount > 0 else 0.0,
+                    amount_sol=real_sol,
+                    price_sol=real_sol / (tokens_amount / 1e6) if tokens_amount > 0 else 0.0,
                     signature=signature_str,
-                    notes=f"Jito Bundle: {bundle_id[:12]}",
+                    notes=f"GMGN Jito Bundle: {bundle_id[:12]} | Net SOL: {real_sol:.4f}",
                 )
-                return True, signature_str, sol_received
+                return True, signature_str, real_sol
 
         tx_sig = await self.rpc.send_raw_transaction(signed_tx_b64)
+        await asyncio.sleep(1.5)
+        bal_after = await self.rpc.get_balance(self.pubkey_str)
+        real_sol = max(0.001, bal_after - bal_before) if bal_after > bal_before else sol_received
         self.logger.log_trade(
-            action=f"SELL [{reason}]",
+            action=f"SELL [{reason}-RPC]",
             token_mint=token_mint,
-            amount_sol=sol_received,
-            price_sol=sol_received / (tokens_amount / 1e6) if tokens_amount > 0 else 0.0,
-            signature=tx_sig,
+            amount_sol=real_sol,
+            price_sol=real_sol / (tokens_amount / 1e6) if tokens_amount > 0 else 0.0,
+            signature=tx_sig or signature_str,
+            notes=f"GMGN Direct RPC Swap | Net SOL: {real_sol:.4f}",
         )
-        return True, tx_sig, sol_received
+        return True, tx_sig or signature_str, real_sol
 
     def _sign_transaction(self, tx_b64: str) -> Tuple[str, str]:
         """Deserializes base64 VersionedTransaction, signs it, and returns base64 string."""

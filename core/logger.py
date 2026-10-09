@@ -93,9 +93,9 @@ class AsyncBotLogger:
         mint_short = f"{token_mint[:4]}...{token_mint[-4:]}"
         color = "green" if "BUY" in action else "yellow" if "SCALE" in action else "magenta"
         sig_str = (
-            f"| [link=https://solscan.io/tx/{signature}]Solscan: {signature[:8]}...[/link]"
+            f"| [link=https://gmgn.ai/sol/token/{token_mint}]GMGN: {mint_short}[/link] | [link=https://solscan.io/tx/{signature}]Solscan: {signature[:8]}...[/link]"
             if signature
-            else "(Simulated)"
+            else f"| [link=https://gmgn.ai/sol/token/{token_mint}]GMGN: {mint_short}[/link] (Simulated)"
         )
         mode_tag = "[cyan][DRY-RUN][/cyan] " if self.dry_run else "[bold red][LIVE][/bold red] "
         formatted = (

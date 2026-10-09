@@ -45,6 +45,8 @@ class PoolDetectionEvent:
     initial_sol_liquidity: float = 0.0
     signature: str = ""
     detected_at: float = field(default_factory=time.time)
+    creator: str = ""
+    token_program: str = ""
 
 
 @dataclass
@@ -187,6 +189,8 @@ class OpenPosition:
     consecutive_exhaustions: int = 0
     is_active: bool = True
     realized_pnl_sol: float = 0.0
+    creator: str = ""
+    token_program: str = ""
 
     @property
     def unrealized_pnl_pct(self) -> float:

@@ -166,10 +166,9 @@ class TradingEngine:
         self._cluster_monitor_task = asyncio.create_task(self._cluster_telemetry_loop())
         self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
         self._dex_market_scanner_task = asyncio.create_task(self._dex_market_scanner_loop())
-        self._pumpportal_ws_task = asyncio.create_task(self._pumpportal_ws_stream_loop())
 
         # 4. Start WebSocket Stream
-        self.logger.log_info("Starting WebSocket DEX Log Listener...")
+        self.logger.log_info("Starting WebSocket DEX Log Listener (Raydium V4 & CPMM)...")
         await self.ws_listener.start()
         self.logger.log_success("Trading Engine successfully initialized. Awaiting market opportunities...")
 
@@ -183,9 +182,6 @@ class TradingEngine:
 
         if self.ws_listener:
             await self.ws_listener.stop()
-
-        if self._pumpportal_ws_task and not self._pumpportal_ws_task.done():
-            self._pumpportal_ws_task.cancel()
 
         if self._dex_market_scanner_task and not self._dex_market_scanner_task.done():
             self._dex_market_scanner_task.cancel()
@@ -259,7 +255,7 @@ class TradingEngine:
                         pos = OpenPosition(
                             token_mint=mint,
                             pool_address=mint,
-                            pool_type=PoolType.PUMP_FUN if mint.endswith("pump") else PoolType.RAYDIUM_V4,
+                            pool_type=PoolType.RAYDIUM_V4,
                             entry_price_sol=entry_p,
                             current_price_sol=entry_p,
                             peak_price_sol=entry_p,
@@ -467,7 +463,7 @@ class TradingEngine:
                 pos = OpenPosition(
                     token_mint=token_mint,
                     pool_address=pool_data["pool_address"],
-                    pool_type=PoolType.PUMP_FUN if token_mint.endswith("pump") else PoolType.RAYDIUM_V4,
+                    pool_type=PoolType.RAYDIUM_V4,
                     entry_price_sol=price_sol,
                     current_price_sol=price_sol,
                     peak_price_sol=price_sol,
@@ -585,10 +581,10 @@ class TradingEngine:
                                     asyncio.create_task(self._fetch_and_evaluate_instant_candidates())
 
                 # Update portfolio equity & check drawdown governor
-                total_unrealized_sol = sum(p.unrealized_pnl_sol for p in self.active_positions.values())
+                total_position_equity_sol = sum((p.sol_invested + p.unrealized_pnl_sol) for p in self.active_positions.values())
                 is_tripped, dd_pct = self.circuit_breaker.update_portfolio_equity(
-                    current_liquid_sol=self.wallet_liquid_sol,
-                    unrealized_pnl_sol=total_unrealized_sol,
+                    current_liquid_sol=self.wallet_liquid_sol + total_position_equity_sol,
+                    unrealized_pnl_sol=0.0,
                 )
                 self.logger.current_drawdown_pct = dd_pct
                 self.logger.peak_equity_sol = self.circuit_breaker.peak_equity_sol
@@ -697,7 +693,7 @@ class TradingEngine:
 
                                     liq_sol = liq_usd / 125.0 if liq_usd > 0 else 24.0
 
-                                    pool_type = PoolType.PUMP_FUN if token_mint.endswith("pump") else PoolType.RAYDIUM_V4
+                                    pool_type = PoolType.RAYDIUM_V4
                                     event = PoolDetectionEvent(
                                         pool_address=pair_addr,
                                         token_mint=token_mint,
@@ -709,8 +705,9 @@ class TradingEngine:
                                         detected_at=time.time(),
                                     )
                                     self.logger.log_info(
-                                        f"[bold green][STRONG HIGH-CAP TOKEN][/] {name} "
-                                        f"({token_mint[:8]}) | MC: ${mc:,.0f} | Liq: ${liq_usd:,.0f} | Dex: {p.get('dexId', 'raydium')}"
+                                        f"[bold green][GMGN STRONG TOKEN][/] {name} "
+                                        f"({token_mint[:8]}) | MC: ${mc:,.0f} | Liq: ${liq_usd:,.0f} | Dex: {p.get('dexId', 'raydium')} | "
+                                        f"[link=https://gmgn.ai/sol/token/{token_mint}]GMGN: https://gmgn.ai/sol/token/{token_mint}[/link]"
                                     )
                                     asyncio.create_task(self.handle_pool_detection(event))
                         except Exception as e:
@@ -724,105 +721,114 @@ class TradingEngine:
 
     async def _fetch_and_evaluate_instant_candidates(self) -> None:
         """
-        Instantly queries freshest and active coins on pump.fun
-        to ensure zero-wait immediate trade execution upon startup and slot rotation.
+        Queries hottest verified Solana DEX gems from DexScreener/GMGN,
+        filters for strong volume and active traders, verifies Jupiter swap route,
+        and triggers instant trade evaluation for maximum profit.
         """
         if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
             return
 
         import aiohttp
-        url = "https://frontend-api-v3.pump.fun/coins?offset=0&limit=10&sort=created_timestamp&order=DESC&includeNsfw=false"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        candidate_mints = []
+
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4.0)) as session:
-                async with session.get(url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-                    if resp.status == 200:
-                        coins = await resp.json()
-                        for c in coins:
-                            if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
-                                break
-                            mint = c.get("mint")
-                            if not mint or mint in self.active_positions or mint in self.monitored_pools:
+            async with aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=4.0)) as session:
+                # 1. Fetch latest verified Solana token profiles
+                try:
+                    async with session.get("https://api.dexscreener.com/token-profiles/latest/v1") as resp:
+                        if resp.status == 200:
+                            profiles = await resp.json()
+                            if isinstance(profiles, list):
+                                for p in profiles:
+                                    if p.get("chainId") == "solana" and p.get("tokenAddress"):
+                                        candidate_mints.append(p.get("tokenAddress"))
+                except Exception:
+                    pass
+
+                # 2. Fetch latest boosts
+                try:
+                    async with session.get("https://api.dexscreener.com/token-boosts/latest/v1") as resp:
+                        if resp.status == 200:
+                            boosts = await resp.json()
+                            if isinstance(boosts, list):
+                                for b in boosts:
+                                    if b.get("chainId") == "solana" and b.get("tokenAddress"):
+                                        candidate_mints.append(b.get("tokenAddress"))
+                except Exception:
+                    pass
+
+                # Deduplicate and filter out active/monitored tokens
+                seen = set()
+                unique_candidates = []
+                for m in candidate_mints:
+                    if m not in seen and m not in self.active_positions and m not in self.monitored_pools:
+                        seen.add(m)
+                        unique_candidates.append(m)
+
+                for mint in unique_candidates[:8]:
+                    if len(self.active_positions) + self._pending_buys >= self.config.MAX_ACTIVE_POSITIONS:
+                        break
+
+                    try:
+                        async with session.get(f"https://api.dexscreener.com/latest/dex/tokens/{mint}") as r:
+                            if r.status != 200:
+                                continue
+                            data = await r.json()
+                            pairs = data.get("pairs") or []
+                            if not pairs:
+                                continue
+                            pair = pairs[0]
+
+                            mc = float(pair.get("marketCap") or pair.get("fdv") or 0)
+                            if mc < self.config.MIN_MARKET_CAP_USD or mc > self.config.MAX_MARKET_CAP_USD:
                                 continue
 
-                            if c.get("complete") is True or c.get("raydium_pool"):
+                            liq_usd = float(pair.get("liquidity", {}).get("usd", 0) or 0)
+                            if liq_usd < 1000.0:
                                 continue
 
-                            mc_sol = float(c.get("market_cap") or 28.0)
-                            mc_usd = mc_sol * 125.0
-                            if mc_usd < self.config.MIN_MARKET_CAP_USD or mc_usd > self.config.MAX_MARKET_CAP_USD:
+                            txns = pair.get("txns", {})
+                            traders = int(txns.get("m5", {}).get("buys", 0) + txns.get("m5", {}).get("sells", 0))
+                            if self.config.MIN_UNIQUE_BUYERS_3M > 1 and traders < self.config.MIN_UNIQUE_BUYERS_3M:
                                 continue
 
-                            name = c.get("name", "PumpGem")
-                            symbol = c.get("symbol", "PUMP")
-                            self.logger.log_info(
-                                f"⚡ [bold cyan][INSTANT FRESH OPPORTUNITY][/] {name} ({symbol}) | "
-                                f"Mint: {mint[:8]}... | MC: ${mc_usd:,.0f} ({mc_sol:.1f} SOL) - Triggering rapid trade evaluation!"
+                            name = pair.get("baseToken", {}).get("name", "GMGN Gem")
+                            symbol = pair.get("baseToken", {}).get("symbol", "GEM")
+                            dex = pair.get("dexId", "raydium")
+                            liq_sol = liq_usd / 125.0
+
+                            # Pre-flight Jupiter swap quote test to guarantee successful execution
+                            test_quote = await self.jupiter_client.get_quote(
+                                input_mint=WSOL_MINT,
+                                output_mint=mint,
+                                amount_lamports=40_000_000,
+                                slippage_bps=500,
                             )
+                            if not test_quote:
+                                continue
+
+                            self.logger.log_info(
+                                f"⚡ [bold cyan][GMGN HOT GEM OPPORTUNITY][/] {name} ({symbol}) | "
+                                f"Mint: {mint[:8]}... | MC: ${mc:,.0f} | Traders: {traders} | Dex: {dex} | "
+                                f"[link=https://gmgn.ai/sol/token/{mint}]GMGN: https://gmgn.ai/sol/token/{mint}[/link]"
+                            )
+
                             event = PoolDetectionEvent(
-                                pool_address=mint,
+                                pool_address=pair.get("pairAddress", mint),
                                 token_mint=mint,
                                 base_mint=WSOL_MINT,
                                 quote_mint="",
-                                pool_type=PoolType.PUMP_FUN,
-                                initial_sol_liquidity=mc_sol,
+                                pool_type=PoolType.RAYDIUM_V4,
+                                initial_sol_liquidity=liq_sol,
                                 signature=mint[:16],
                                 detected_at=time.time(),
                             )
                             await self.handle_pool_detection(event)
                             await asyncio.sleep(1.0)
+                    except Exception as e:
+                        self.logger.log_debug(f"Candidate lookup error for {mint[:8]}: {e}")
+
         except Exception as e:
-            self.logger.log_debug(f"Instant candidate lookup notice: {e}")
-
-    async def _pumpportal_ws_stream_loop(self) -> None:
-        """
-        Connects directly to PumpPortal real-time WebSocket to receive newly listed Pump.fun tokens
-        within milliseconds of creation on Solana ($3k - $15k MC).
-        """
-        import json
-        import websockets
-
-        uri = "wss://pumpportal.fun/api/data"
-        while self._running:
-            try:
-                async with websockets.connect(uri, ping_interval=20, ping_timeout=10) as ws:
-                    await ws.send(json.dumps({"method": "subscribeNewToken"}))
-                    self.logger.log_success("Connected to PumpPortal Real-Time New Token Stream!")
-                    async for raw in ws:
-                        if not self._running:
-                            break
-                        try:
-                            data = json.loads(raw)
-                            mint = data.get("mint")
-                            if not mint:
-                                continue
-                            mc_sol = float(data.get("marketCapSol") or 28.0)
-                            mc_usd = mc_sol * 125.0
-                            if mc_usd < self.config.MIN_MARKET_CAP_USD or mc_usd > self.config.MAX_MARKET_CAP_USD:
-                                continue
-
-                            name = data.get("name", "PumpGem")
-                            symbol = data.get("symbol", "PUMP")
-                            self.logger.log_info(
-                                f"[bold cyan][PUMP.FUN LIVE LISTING][/] New Token: {name} ({symbol}) | "
-                                f"Mint: {mint[:8]}... | MC: ${mc_usd:,.0f} ({mc_sol:.1f} SOL)"
-                            )
-
-                            event = PoolDetectionEvent(
-                                pool_address=mint,
-                                token_mint=mint,
-                                base_mint=WSOL_MINT,
-                                quote_mint="",
-                                pool_type=PoolType.PUMP_FUN,
-                                initial_sol_liquidity=mc_sol,
-                                signature=mint[:16],
-                                detected_at=time.time(),
-                            )
-                            asyncio.create_task(self.handle_pool_detection(event))
-                        except Exception:
-                            continue
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                self.logger.log_debug(f"PumpPortal WS reconnecting: {e}")
-                await asyncio.sleep(2.0)
+            self.logger.log_debug(f"GMGN candidate evaluation notice: {e}")
 

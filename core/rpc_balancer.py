@@ -71,7 +71,11 @@ class MultiRPCBalancer:
         """Initializes client session and starts background health checks."""
         timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
         connector = aiohttp.TCPConnector(limit=100, ttl_dns_cache=300, resolver=aiohttp.DefaultResolver())
-        self._session = aiohttp.ClientSession(timeout=timeout, connector=connector)
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        }
+        self._session = aiohttp.ClientSession(timeout=timeout, connector=connector, headers=headers)
         self._running = True
         self._health_task = asyncio.create_task(self._health_check_loop())
         # Initial health evaluation
@@ -312,7 +316,26 @@ class MultiRPCBalancer:
             return []
 
     async def get_token_balance(self, pubkey: str, mint: str) -> float:
-        """Fetch real SPL token balance for given owner and token mint."""
+        """Fetch real SPL token balance for given owner and token mint via direct ATA check and fallback."""
+        try:
+            from solders.pubkey import Pubkey
+            wallet_pk = Pubkey.from_string(pubkey)
+            mint_pk = Pubkey.from_string(mint)
+            assoc_prog = Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
+            for prog_str in [
+                "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",  # Token-2022
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",  # Standard Token
+            ]:
+                token_prog = Pubkey.from_string(prog_str)
+                ata = Pubkey.find_program_address([bytes(wallet_pk), bytes(token_prog), bytes(mint_pk)], assoc_prog)[0]
+                ata_res = await self.call("getTokenAccountBalance", [str(ata)])
+                if ata_res and "value" in ata_res:
+                    ui_amt = ata_res["value"].get("uiAmount")
+                    if ui_amt is not None and float(ui_amt) > 0:
+                        return float(ui_amt)
+        except Exception:
+            pass
+
         try:
             res = await self.call(
                 "getTokenAccountsByOwner",

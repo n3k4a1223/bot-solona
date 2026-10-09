@@ -19,8 +19,14 @@ WSOL_MINT = "So11111111111111111111111111111111111111112"
 class JupiterClient:
     """Asynchronous client for Jupiter v6 Swap API."""
 
-    def __init__(self, api_url: str = "https://api.jup.ag/swap/v1"):
-        self.api_url = api_url.rstrip("/")
+    def __init__(self, api_url: str = "https://lite-api.jup.ag/swap/v1"):
+        self.endpoints = [
+            "https://lite-api.jup.ag/swap/v1",
+            "https://api.jup.ag/swap/v1",
+        ]
+        if api_url.rstrip("/") not in self.endpoints:
+            self.endpoints.insert(0, api_url.rstrip("/"))
+        self.api_url = self.endpoints[0]
         self.logger = get_logger()
         self._session: Optional[aiohttp.ClientSession] = None
 
@@ -30,7 +36,7 @@ class JupiterClient:
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=4.5),
                 connector=conn,
-                headers={"Accept": "application/json"},
+                headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0"},
             )
         return self._session
 
@@ -47,7 +53,7 @@ class JupiterClient:
         only_direct_routes: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """
-        Fetches best swap route quote from Jupiter v6.
+        Fetches best swap route quote from Jupiter v6 with multi-endpoint failover.
         """
         session = await self._get_session()
         params = {
@@ -58,17 +64,18 @@ class JupiterClient:
             "onlyDirectRoutes": "true" if only_direct_routes else "false",
         }
 
-        url = f"{self.api_url}/quote"
-        try:
-            async with session.get(url, params=params) as resp:
-                if resp.status == 200:
-                    return await resp.json()
-                err_text = await resp.text()
-                self.logger.log_warning(f"Jupiter quote error ({resp.status}): {err_text[:120]}")
-                return None
-        except Exception as e:
-            self.logger.log_warning(f"Jupiter quote request exception: {e}")
-            return None
+        for ep in self.endpoints:
+            url = f"{ep}/quote"
+            try:
+                async with session.get(url, params=params) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    if resp.status == 429:
+                        await asyncio.sleep(0.3)
+                        continue
+            except Exception:
+                continue
+        return None
 
     async def build_swap_transaction(
         self,
@@ -78,8 +85,7 @@ class JupiterClient:
         priority_fee_lamports: Optional[int] = None,
     ) -> Optional[str]:
         """
-        Requests serialized VersionedTransaction from Jupiter /swap endpoint.
-        Returns base64-encoded transaction ready for signing.
+        Requests serialized VersionedTransaction from Jupiter /swap endpoint with failover.
         """
         session = await self._get_session()
         payload = {
@@ -87,21 +93,22 @@ class JupiterClient:
             "userPublicKey": user_public_key,
             "wrapAndUnwrapSol": True,
             "dynamicComputeUnitLimit": dynamic_compute_unit_limit,
-            "asLegacyTransaction": False,  # Always use modern VersionedTransaction
+            "asLegacyTransaction": False,
         }
 
         if priority_fee_lamports is not None:
             payload["prioritizationFeeLamports"] = priority_fee_lamports
 
-        url = f"{self.api_url}/swap"
-        try:
-            async with session.post(url, json=payload) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data.get("swapTransaction")
-                err_text = await resp.text()
-                self.logger.log_error(f"Jupiter /swap transaction build error ({resp.status}): {err_text[:120]}")
-                return None
-        except Exception as e:
-            self.logger.log_error(f"Jupiter /swap request exception: {e}")
-            return None
+        for ep in self.endpoints:
+            url = f"{ep}/swap"
+            try:
+                async with session.post(url, json=payload) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data.get("swapTransaction")
+                    if resp.status == 429:
+                        await asyncio.sleep(0.3)
+                        continue
+            except Exception:
+                continue
+        return None
